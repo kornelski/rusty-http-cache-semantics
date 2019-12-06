@@ -202,7 +202,7 @@ impl CachePolicy {
 mod tests {
     use super::*;
     use chrono::prelude::*;
-    use http::{HeaderValue, Request, Response};
+    use http::{header, HeaderValue, Request, Response};
 
     fn format_date(delta: i64, unit: i64) -> String {
         let now: DateTime<Utc> = Utc::now();
@@ -227,20 +227,20 @@ mod tests {
 
         let mut response = response_parts(
             Response::builder()
-                .header("last-modified", format_date(-105, 1))
-                .header("expires", format_date(1, 3600))
-                .header("www-authenticate", "challenge")
+                .header(header::LAST_MODIFIED, format_date(-105, 1))
+                .header(header::EXPIRES, format_date(1, 3600))
+                .header(header::WWW_AUTHENTICATE, "challenge")
                 .status(response_code),
         );
 
         if 407 == response_code {
             response.headers.insert(
-                "proxy-authenticate",
+                header::PROXY_AUTHENTICATE,
                 HeaderValue::from_static("Basic realm=\"protected area\""),
             );
         } else if 401 == response_code {
             response.headers.insert(
-                "www-authenticate",
+                header::WWW_AUTHENTICATE,
                 HeaderValue::from_static("Basic realm=\"protected area\""),
             );
         }
@@ -315,8 +315,8 @@ mod tests {
             &request_parts(Request::get("/")),
             &response_parts(
                 Response::builder()
-                    .header("last-modified", format_date(-105, 1))
-                    .header("date", format_date(-5, 1)),
+                    .header(header::LAST_MODIFIED, format_date(-105, 1))
+                    .header(header::DATE, format_date(-5, 1)),
             ),
         );
 
@@ -334,8 +334,8 @@ mod tests {
             &request_parts(Request::get("/")),
             &response_parts(
                 Response::builder()
-                    .header("last-modified", format_date(-105, 3600 * 24))
-                    .header("date", format_date(-5, 3600 * 24)),
+                    .header(header::LAST_MODIFIED, format_date(-105, 3600 * 24))
+                    .header(header::DATE, format_date(-5, 3600 * 24)),
             ),
         );
 
@@ -356,8 +356,8 @@ mod tests {
         let mut request = request_parts(Request::get("/"));
         let response = response_parts(
             Response::builder()
-                .header("date", format_date(-120, 1))
-                .header("cache-control", "max-age=60"),
+                .header(header::DATE, format_date(-120, 1))
+                .header(header::CACHE_CONTROL, "max-age=60"),
         );
         let policy = options.policy_for(&request, &response);
 
@@ -393,8 +393,8 @@ mod tests {
         let mut request = request_parts(Request::get("/"));
         let response = response_parts(
             Response::builder()
-                .header("date", format_date(-3, 60))
-                .header("cache-control", "s-maxage=60, max-age=180"),
+                .header(header::DATE, format_date(-3, 60))
+                .header(header::CACHE_CONTROL, "s-maxage=60, max-age=180"),
         );
         let policy = options.policy_for(&request, &response);
 
@@ -409,9 +409,10 @@ mod tests {
 
         // 1. seed the cache (potentially)
         // 2. expect a cache hit or miss
-
         let mut request = request_parts(Request::builder().method(method));
-        let response = response_parts(Response::builder().header("expires", format_date(1, 3600)));
+
+        let response =
+            response_parts(Response::builder().header(header::EXPIRES, format_date(1, 3600)));
 
         let policy = options.policy_for(&request, &response);
 
@@ -438,75 +439,70 @@ mod tests {
         request_method_not_cached("TRACE");
     }
 
-    /*
     #[test]
     fn test_etag_and_expiration_date_in_the_future() {
-        let policy = CachePolicy::new(
-            json!({"headers": {}}),
-            json!({
-                "headers": {
-                    "etag": "v1",
-                    "last-modified": format_date(-2, 3600),
-                    "expires": format_date(1, 3600),
-                }
-            }),
-        )
-        .with_shared(false);
+        let options = CacheOptions {
+            shared: false,
+            ..CacheOptions::default()
+        };
+
+        let policy = options.policy_for(
+            &request_parts(Request::builder()),
+            &response_parts(
+                Response::builder()
+                    .header(header::ETAG, "v1")
+                    .header(header::LAST_MODIFIED, format_date(-2, 3600))
+                    .header(header::EXPIRES, format_date(1, 3600)),
+            ),
+        );
 
         assert!(policy.time_to_live() > 0);
     }
 
     #[test]
     fn test_client_side_no_store() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "cache-control": "no-store",
-                }
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=60",
-                }
-            }),
-        )
-        .with_shared(false);
+        let options = CacheOptions {
+            shared: false,
+            ..CacheOptions::default()
+        };
+
+        let policy = options.policy_for(
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "no-store")),
+            &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=60")),
+        );
 
         assert_eq!(policy.is_storable(), false);
     }
 
+    /*
     #[test]
     fn test_request_max_age() {
-        let policy = CachePolicy::new(
-            json!({"headers": {}}),
-            json!({
-                "headers": {
-                    "last-modified": format_date(-2, 3600),
-                    "date": format_date(-1, 60),
-                    "expires": format_date(1, 3600),
-                }
-            }),
-        )
-        .with_shared(false);
+        let options = CacheOptions {
+            shared: false,
+            ..CacheOptions::default()
+        };
+
+        let policy = options.policy_for(
+            &request_with_headers(vec![]),
+            &response_with_headers(vec![
+                ("last-modified", &format_date(-2, 3600)[..]),
+                ("date", &format_date(-1, 3600)[..]),
+                ("expires", &format_date(1, 3600)[..])
+            ])
+        );
 
         assert_eq!(policy.is_stale(), false);
         assert!(policy.age() >= 60);
-
         assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "cache-control": "max-age=90",
-                },
-            })),
+            policy.satisfies_without_revalidation(request_with_headers(vec![
+                ("cache-control", "max-age=90")
+            ])),
             true
         );
-
         assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "cache-control": "max-age=30",
-                },
-            })),
+            policy.satisfies_without_revalidation(request_with_headers(vec![
+                ("cache-control", "max-age=30")
+            ])),
             false
         );
     }
