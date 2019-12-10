@@ -202,7 +202,7 @@ impl CachePolicy {
 mod tests {
     use super::*;
     use chrono::prelude::*;
-    use http::{Request, Response, HeaderValue};
+    use http::{HeaderValue, Request, Response};
 
     fn format_date(delta: i64, unit: i64) -> String {
         let now: DateTime<Utc> = Utc::now();
@@ -225,19 +225,24 @@ mod tests {
             ..CacheOptions::default()
         };
 
-        let mut response = response_parts(Response::builder()
-            .header("last-modified", format_date(-105, 1))
-            .header("expires", format_date(1, 3600))
-            .header("www-authenticate", "challenge")
-            .status(response_code)
+        let mut response = response_parts(
+            Response::builder()
+                .header("last-modified", format_date(-105, 1))
+                .header("expires", format_date(1, 3600))
+                .header("www-authenticate", "challenge")
+                .status(response_code),
         );
 
         if 407 == response_code {
-            response.headers
-                .insert("proxy-authenticate", HeaderValue::from_static("Basic realm=\"protected area\""));
+            response.headers.insert(
+                "proxy-authenticate",
+                HeaderValue::from_static("Basic realm=\"protected area\""),
+            );
         } else if 401 == response_code {
-            response.headers
-                .insert("www-authenticate", HeaderValue::from_static("Basic realm=\"protected area\""));
+            response.headers.insert(
+                "www-authenticate",
+                HeaderValue::from_static("Basic realm=\"protected area\""),
+            );
         }
 
         let request = request_parts(Request::get("/"));
@@ -306,13 +311,13 @@ mod tests {
             ..CacheOptions::default()
         };
 
-        let response_builder = Response::builder()
-            .header("last-modified", format_date(-105, 1))
-            .header("date", format_date(-5, 1));
-
         let policy = options.policy_for(
             &request_parts(Request::get("/")),
-            &response_parts(response_builder),
+            &response_parts(
+                Response::builder()
+                    .header("last-modified", format_date(-105, 1))
+                    .header("date", format_date(-5, 1)),
+            ),
         );
 
         assert!(policy.time_to_live() > 4000);
@@ -325,13 +330,13 @@ mod tests {
             ..CacheOptions::default()
         };
 
-        let response_builder = Response::builder()
-            .header("last-modified", format_date(-105, 3600 * 24))
-            .header("date", format_date(-5, 3600 * 24));
-
         let policy = options.policy_for(
             &request_parts(Request::get("/")),
-            &response_parts(response_builder),
+            &response_parts(
+                Response::builder()
+                    .header("last-modified", format_date(-105, 3600 * 24))
+                    .header("date", format_date(-5, 3600 * 24)),
+            ),
         );
 
         // XXX: should max_age be public API to be tested?
@@ -348,12 +353,12 @@ mod tests {
 
         // Chrome interprets max-age relative to the local clock. Both our cache
         // and Firefox both use the earlier of the local and server's clock.
-        let response_builder = Response::builder()
-            .header("date", format_date(-120, 1))
-            .header("cache-control", "max-age=60");
-
         let mut request = request_parts(Request::get("/"));
-        let response = response_parts(response_builder);
+        let response = response_parts(
+            Response::builder()
+                .header("date", format_date(-120, 1))
+                .header("cache-control", "max-age=60"),
+        );
         let policy = options.policy_for(&request, &response);
 
         assert!(!policy.is_cached_response_fresh(&mut request, &response));
@@ -385,12 +390,12 @@ mod tests {
             ..CacheOptions::default()
         };
 
-        let response_builder = Response::builder()
-            .header("date", format_date(-3, 60))
-            .header("cache-control", "s-maxage=60, max-age=180");
-
         let mut request = request_parts(Request::get("/"));
-        let response = response_parts(response_builder);
+        let response = response_parts(
+            Response::builder()
+                .header("date", format_date(-3, 60))
+                .header("cache-control", "s-maxage=60, max-age=180"),
+        );
         let policy = options.policy_for(&request, &response);
 
         assert!(!policy.is_cached_response_fresh(&mut request, &response));
@@ -405,13 +410,8 @@ mod tests {
         // 1. seed the cache (potentially)
         // 2. expect a cache hit or miss
 
-        let request_builder = Request::builder()
-            .method(method);
-        let mut request = request_parts(request_builder);
-
-        let response_builder = Response::builder()
-            .header("expires", format_date(1, 3600));
-        let response = response_parts(response_builder);
+        let mut request = request_parts(Request::builder().method(method));
+        let response = response_parts(Response::builder().header("expires", format_date(1, 3600)));
 
         let policy = options.policy_for(&request, &response);
 
