@@ -24,7 +24,7 @@ lazy_static! {
         set.insert(410);
         set.insert(414);
         set.insert(501);
-        return set;
+        set
     };
 }
 
@@ -45,7 +45,7 @@ lazy_static! {
         set.insert(410);
         set.insert(414);
         set.insert(501);
-        return set;
+        set
     };
 }
 
@@ -61,7 +61,7 @@ lazy_static! {
         set.insert("trailer");
         set.insert("transfer-encoding");
         set.insert("upgrade");
-        return set;
+        set
     };
 }
 
@@ -72,7 +72,7 @@ lazy_static! {
         set.insert("content-encoding");
         set.insert("transfer-encoding");
         set.insert("content-range");
-        return set;
+        set
     };
 }
 
@@ -140,6 +140,8 @@ impl CacheOptions {
     }
 }
 
+// While these methods are all unimplemented, we don't expect them to all appear used.
+#[allow(dead_code)]
 impl CachePolicy {
     /// Returns `true` if the response can be stored in a cache. If it's `false` then you MUST NOT
     /// store either the request or the response.
