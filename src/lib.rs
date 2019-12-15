@@ -8,7 +8,7 @@
 use http::request::Parts as Request;
 use http::response::Parts as Response;
 use lazy_static::lazy_static;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 lazy_static! {
     static ref STATUS_CODE_CACHEABLE_BY_DEFAULT: HashSet<i32> = {
@@ -210,12 +210,17 @@ impl CachePolicy {
     fn max_age(&self) -> u32 {
         unimplemented!();
     }
+
+    fn response_headers(&self) -> HashMap<String, String> {
+        unimplemented!();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::prelude::*;
+    use http::response::Parts as ResponseParts;
     use http::{header, HeaderValue, Method, Request, Response};
 
     fn format_date(delta: i64, unit: i64) -> String {
@@ -353,8 +358,7 @@ mod tests {
             ),
         );
 
-        // XXX: should max_age be public API to be tested?
-        //assert!(policy.max_age() >= 10 * 3600 * 24);
+        assert!(policy.max_age() >= 10 * 3600 * 24);
         assert!(policy.time_to_live() + 1000 >= 5 * 3600 * 24);
     }
 
@@ -367,7 +371,7 @@ mod tests {
 
         // Chrome interprets max-age relative to the local clock. Both our cache
         // and Firefox both use the earlier of the local and server's clock.
-        let mut request = request_parts(Request::get("/"));
+        let request = request_parts(Request::get("/"));
         let response = response_parts(
             Response::builder()
                 .header(header::DATE, format_date(-120, 1))
@@ -375,7 +379,7 @@ mod tests {
         );
         let policy = options.policy_for(&request, &response);
 
-        assert!(!policy.is_cached_response_fresh(&mut request, &response));
+        assert!(policy.is_stale());
     }
 
     #[test]
@@ -404,7 +408,7 @@ mod tests {
             ..CacheOptions::default()
         };
 
-        let mut request = request_parts(Request::get("/"));
+        let request = request_parts(Request::get("/"));
         let response = response_parts(
             Response::builder()
                 .header(header::DATE, format_date(-3, 60))
@@ -412,7 +416,7 @@ mod tests {
         );
         let policy = options.policy_for(&request, &response);
 
-        assert!(!policy.is_cached_response_fresh(&mut request, &response));
+        assert!(policy.is_stale());
     }
 
     fn request_method_not_cached(method: &str) {
@@ -423,14 +427,14 @@ mod tests {
 
         // 1. seed the cache (potentially)
         // 2. expect a cache hit or miss
-        let mut request = request_parts(Request::builder().method(method));
+        let request = request_parts(Request::builder().method(method));
 
         let response =
             response_parts(Response::builder().header(header::EXPIRES, format_date(1, 3600)));
 
         let policy = options.policy_for(&request, &response);
 
-        assert!(!policy.is_cached_response_fresh(&mut request, &response));
+        assert!(policy.is_stale());
     }
 
     #[test]
@@ -485,7 +489,7 @@ mod tests {
             &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=60")),
         );
 
-        assert_eq!(policy.is_storable(), false);
+        assert!(!policy.is_storable());
     }
 
     #[test]
@@ -505,22 +509,16 @@ mod tests {
 
         let policy = options.policy_for(&first_request, &response);
 
-        assert_eq!(policy.is_stale(), false);
+        assert!(policy.is_stale());
         assert!(policy.age() >= 60);
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
-                &response,
-            ),
-            true
-        );
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
-                &response,
-            ),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
+            &response,
+        ));
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
+            &response,
+        ));
     }
 
     #[test]
@@ -535,27 +533,17 @@ mod tests {
 
         let policy = options.policy_for(&request_parts(Request::builder()), &response);
 
-        assert_eq!(policy.is_stale(), false);
+        assert!(!policy.is_stale());
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(
-                    Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")
-                ),
-                &response,
-            ),
-            true
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(
-                    Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")
-                ),
-                &response,
-            ),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
+            &response,
+        ));
     }
 
     #[test]
@@ -575,33 +563,20 @@ mod tests {
 
         assert!(policy.is_stale());
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(
-                    Request::builder().header(header::CACHE_CONTROL, "max-stale=180")
-                ),
-                &response,
-            ),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-                &response,
-            ),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(
-                    Request::builder().header(header::CACHE_CONTROL, "max-stale=10")
-                ),
-                &response,
-            ),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
+            &response,
+        ));
     }
 
     #[test]
@@ -621,42 +596,35 @@ mod tests {
 
         assert!(policy.is_stale());
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(
-                    Request::builder().header(header::CACHE_CONTROL, "max-stale=180")
-                ),
-                &response,
-            ),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.is_cached_response_fresh(
-                &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-                &response,
-            ),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            &response,
+        ));
     }
 
-    /*
     #[test]
     fn test_get_headers_deletes_cached_100_level_warnings() {
+        let options = CacheOptions {
+            ..CacheOptions::default()
+        };
 
-
-        let policy = CachePolicy::new(
-            json!({"headers": {}}),
-            json!({
-                "headers": {
-                    "warning": "199 test danger, 200 ok ok",
-                }
-            }),
+        let policy = options.policy_for(
+            &request_parts(Request::builder()),
+            &response_parts(
+                Response::builder().header(header::WARNING, "199 test danger, 200 ok ok"),
+            ),
         );
 
-        assert_eq!("200 ok ok", policy.response_headers()["warning"]);
+        assert_eq!(
+            "200 ok ok",
+            policy.response_headers()[header::WARNING.as_str()]
+        );
     }
-    */
 
     #[test]
     fn test_do_not_cache_partial_response() {
@@ -673,7 +641,15 @@ mod tests {
             ),
         );
 
-        assert_eq!(policy.is_storable(), false);
+        assert!(!policy.is_storable());
+    }
+
+    fn public_cacheable_response() -> ResponseParts {
+        response_parts(Response::builder().header(header::CACHE_CONTROL, "public, max-age=222"))
+    }
+
+    fn cacheable_response() -> ResponseParts {
+        response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=111"))
     }
 
     #[test]
@@ -688,13 +664,11 @@ mod tests {
                     .method(Method::GET)
                     .header(header::CACHE_CONTROL, "no-store"),
             ),
-            &response_parts(
-                Response::builder().header(header::CACHE_CONTROL, "public, max-age=222"),
-            ),
+            &public_cacheable_response(),
         );
 
-        assert_eq!(policy.is_stale(), true);
-        assert_eq!(policy.is_storable(), false);
+        assert!(policy.is_stale());
+        assert!(!policy.is_storable());
     }
 
     #[test]
@@ -708,8 +682,8 @@ mod tests {
             &response_parts(Response::builder().header(header::CACHE_CONTROL, "public")),
         );
 
-        assert_eq!(policy.is_stale(), true);
-        assert_eq!(policy.is_storable(), false);
+        assert!(policy.is_stale());
+        assert!(!policy.is_storable());
     }
 
     #[test]
@@ -720,13 +694,11 @@ mod tests {
 
         let policy = options.policy_for(
             &request_parts(Request::builder().method(Method::POST)),
-            &response_parts(
-                Response::builder().header(header::CACHE_CONTROL, "public, max-age=222"),
-            ),
+            &public_cacheable_response(),
         );
 
-        assert_eq!(policy.is_stale(), false);
-        assert_eq!(policy.is_storable(), true);
+        assert!(!policy.is_stale());
+        assert!(policy.is_storable());
     }
 
     #[test]
@@ -741,13 +713,11 @@ mod tests {
                     .method(Method::GET)
                     .header(header::AUTHORIZATION, "test"),
             ),
-            &response_parts(
-                Response::builder().header(header::CACHE_CONTROL, "public, max-age=222"),
-            ),
+            &public_cacheable_response(),
         );
 
-        assert_eq!(policy.is_stale(), false);
-        assert_eq!(policy.is_storable(), true);
+        assert!(!policy.is_stale());
+        assert!(policy.is_storable());
     }
 
     /*
@@ -791,13 +761,11 @@ mod tests {
                     .method(Method::GET)
                     .header(header::AUTHORIZATION, "test"),
             ),
-            &response_parts(
-                Response::builder().header(header::CACHE_CONTROL, "public, max-age=111"),
-            ),
+            &cacheable_response(),
         );
 
-        assert_eq!(policy.is_stale(), false);
-        assert_eq!(policy.is_storable(), true);
+        assert!(!policy.is_stale());
+        assert!(policy.is_storable());
     }
 
     #[test]
@@ -817,7 +785,7 @@ mod tests {
             ),
         );
 
-        assert_eq!(policy.is_storable(), true);
+        assert!(policy.is_storable());
     }
 
     #[test]
@@ -832,7 +800,7 @@ mod tests {
                     .method(Method::GET)
                     .header(header::AUTHORIZATION, "test"),
             ),
-            &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=111")),
+            &cacheable_response(),
         );
 
         assert_eq!(policy.is_stale(), true);
@@ -850,7 +818,7 @@ mod tests {
             &response_parts(Response::builder()),
         );
 
-        assert_eq!(policy.is_stale(), true);
+        assert!(policy.is_stale());
     }
 
     #[test]
@@ -866,7 +834,7 @@ mod tests {
             ),
         );
 
-        assert_eq!(policy.is_stale(), false);
+        assert!(!policy.is_stale());
         assert_eq!(policy.max_age(), 999999);
     }
 
@@ -907,7 +875,7 @@ mod tests {
             ),
         );
 
-        assert_eq!(policy.is_stale(), false);
+        assert!(!policy.is_stale());
         assert_eq!(policy.max_age(), 678);
     }
 
@@ -926,87 +894,99 @@ mod tests {
             ),
         );
 
-        assert_eq!(policy.is_stale(), false);
+        assert!(!policy.is_stale());
         assert_eq!(policy.max_age(), 259200);
     }
 
-    /*
     #[test]
     fn test_pre_check_tolerated() {
-        let cache_control = json!("pre-check=0, post-check=0, no-store, no-cache, max-age=100");
-        let policy = CachePolicy::new(
-            json!({
-                "method": "GET",
-                "headers": {},
-            }),
-            json!({ "cache-control": cache_control }),
+        let options = CacheOptions {
+            ..CacheOptions::default()
+        };
+        let cache_control = "pre-check=0, post-check=0, no-store, no-cache, max-age=100";
+
+        let policy = options.policy_for(
+            &request_parts(Request::builder().method(Method::GET)),
+            &response_parts(Response::builder().header(header::CACHE_CONTROL, cache_control)),
         );
 
-        assert_eq!(policy.is_stale(), true);
-        assert_eq!(policy.is_storable(), false);
+        assert!(policy.is_stale());
+        assert!(!policy.is_storable());
         assert_eq!(policy.max_age(), 0);
-        assert_eq!(policy.response_headers()["cache-control"], cache_control);
+        assert_eq!(
+            policy.response_headers()[header::CACHE_CONTROL.as_str()],
+            cache_control
+        );
     }
 
     #[test]
     fn test_pre_check_poison() {
-        let original_cache_control =
-            json!("pre-check=0, post-check=0, no-cache, no-store, max-age=100, custom, foo=bar");
-        let response = json!({
-            "headers": {
-                "cache-control": original_cache_control,
-                "pragma": "no-cache"
-            }
-        });
+        let options = CacheOptions {
+            ignore_cargo_cult: true,
+            ..CacheOptions::default()
+        };
 
-        let policy = CachePolicy::new(
-            json!({
-                "method": "GET",
-                "headers": {},
-            }),
-            response,
+        let original_cache_control =
+            "pre-check=0, post-check=0, no-cache, no-store, max-age=100, custom, foo=bar";
+
+        let policy = options.policy_for(
+            &request_parts(Request::builder().method(Method::GET)),
+            &response_parts(
+                Response::builder()
+                    .header(header::CACHE_CONTROL, original_cache_control)
+                    .header(header::PRAGMA, "no-cache"),
+            ),
         );
 
-        assert_eq!(policy.is_stale(), false);
-        assert_eq!(policy.is_storable(), true);
+        assert!(!policy.is_stale());
+        assert!(policy.is_storable());
         assert_eq!(policy.max_age(), 100);
 
-        // TODO: None of this works. Not really sure what it is doing.
-        // Link to function in JS: https://github.com/kornelski/http-cache-semantics/blob/master/test/responsetest.js#L66
+        let cache_control_header = &policy.response_headers()[header::CACHE_CONTROL.as_str()];
+        assert!(!cache_control_header.contains("pre-check"));
+        assert!(!cache_control_header.contains("post-check"));
+        assert!(!cache_control_header.contains("no-store"));
+
+        assert!(cache_control_header.contains("max-age=100"));
+        assert!(cache_control_header.contains("custom"));
+        assert!(cache_control_header.contains("foo=bar"));
+
+        assert!(!policy
+            .response_headers()
+            .contains_key(header::PRAGMA.as_str()));
     }
 
     #[test]
     fn test_pre_check_poison_undefined_header() {
-        let original_cache_control = json!("pre-check=0, post-check=0, no-cache, no-store");
-        let response = json!({
-            "headers": {
-                "cache-control": original_cache_control,
-                "expires": "yesterday!"
-            }
-        });
+        let options = CacheOptions {
+            ignore_cargo_cult: true,
+            ..CacheOptions::default()
+        };
 
-        let policy = CachePolicy::new(
-            json!({
-                "method": "GET",
-                "headers": {},
-            }),
-            response,
-        )
-        .with_ignored_cargo_cult(true);
+        let original_cache_control = "pre-check=0, post-check=0, no-cache, no-store";
 
-        assert_eq!(policy.is_stale(), true);
-        assert_eq!(policy.is_storable(), true);
+        let policy = options.policy_for(
+            &request_parts(Request::builder().method(Method::GET)),
+            &response_parts(
+                Response::builder()
+                    .header(header::CACHE_CONTROL, original_cache_control)
+                    .header(header::EXPIRES, "yesterday!"),
+            ),
+        );
+
+        assert!(policy.is_stale());
+        assert!(policy.is_storable());
         assert_eq!(policy.max_age(), 0);
 
-        // TODO: Need to come back to figure this out.
-        // Again "cannot apply unary operator !"
-
-        // let cache_control = policy.response_headers()["cache-control"];
-        // assert!(!cache_control);
-        // assert!(response["headers"]["expires"]);
-        // assert!(!policy.response_headers()["expires"]);
+        assert!(!policy
+            .response_headers()
+            .contains_key(header::CACHE_CONTROL.as_str()));
+        assert!(!policy
+            .response_headers()
+            .contains_key(header::EXPIRES.as_str()));
     }
 
+    /*
     #[test]
     fn test_cache_with_expires() {
         let local_time = Local::now();
