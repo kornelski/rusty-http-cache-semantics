@@ -7,8 +7,9 @@
 
 use http::request::Parts as Request;
 use http::response::Parts as Response;
+use http::{HeaderMap, HeaderValue};
 use lazy_static::lazy_static;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 lazy_static! {
     static ref STATUS_CODE_CACHEABLE_BY_DEFAULT: HashSet<i32> = {
@@ -211,7 +212,11 @@ impl CachePolicy {
         unimplemented!();
     }
 
-    fn response_headers(&self) -> HashMap<String, String> {
+    fn response_headers(&self) -> HeaderMap<HeaderValue> {
+        unimplemented!();
+    }
+
+    fn revalidation_headers(&self, request: &mut Request) -> HeaderMap<HeaderValue> {
         unimplemented!();
     }
 }
@@ -221,6 +226,7 @@ mod tests {
     use super::*;
     use chrono::prelude::*;
     use chrono::Duration;
+    use http::request::Parts as RequestParts;
     use http::response::Parts as ResponseParts;
     use http::{header, HeaderValue, Method, Request, Response};
 
@@ -944,13 +950,19 @@ mod tests {
         assert_eq!(policy.max_age(), 100);
 
         let cache_control_header = &policy.response_headers()[header::CACHE_CONTROL.as_str()];
-        assert!(!cache_control_header.contains("pre-check"));
-        assert!(!cache_control_header.contains("post-check"));
-        assert!(!cache_control_header.contains("no-store"));
+        assert!(!cache_control_header.to_str().unwrap().contains("pre-check"));
+        assert!(!cache_control_header
+            .to_str()
+            .unwrap()
+            .contains("post-check"));
+        assert!(!cache_control_header.to_str().unwrap().contains("no-store"));
 
-        assert!(cache_control_header.contains("max-age=100"));
-        assert!(cache_control_header.contains("custom"));
-        assert!(cache_control_header.contains("foo=bar"));
+        assert!(cache_control_header
+            .to_str()
+            .unwrap()
+            .contains("max-age=100"));
+        assert!(cache_control_header.to_str().unwrap().contains("custom"));
+        assert!(cache_control_header.to_str().unwrap().contains("foo=bar"));
 
         assert!(!policy
             .response_headers()
@@ -1551,118 +1563,408 @@ mod tests {
         // TODO: Need to figure out how "subclassing" works in Rust
         // Link to JavaScript function: https://github.com/kornelski/http-cache-semantics/blob/master/test/responsetest.js#L472
     }
+    */
 
-    lazy_static! {
-        static ref SIMPLE_REQUEST_REVALIDATE: Value = {
-            let request = json!({
-                "method": "GET",
-                "headers": {
-                    "host": "www.w3c.org",
-                    "connection": "close",
-                    "x-custom": "yes",
-                },
-                "url": "/Protocols/rfc2616/rfc2616-sec14.html",
-            });
-
-            return request;
-        };
+    fn simple_request() -> RequestParts {
+        request_parts(simple_request_builder())
     }
 
-    fn assert_headers_passed(headers: Value) {
-        assert_eq!(headers["connection"], json!(null));
-        assert_eq!(headers["x-custom"], "yes");
+    fn simple_request_builder() -> http::request::Builder {
+        Request::builder()
+            .method(Method::GET)
+            .header(header::HOST, "www.w3c.org")
+            .header(header::CONNECTION, "close")
+            .header("x-custom", "yes")
+            .uri("/Protocols/rfc2616/rfc2616-sec14.html")
     }
 
-    fn assert_no_validators(headers: Value) {
-        assert_eq!(headers["if-none-match"], json!(null));
-        assert_eq!(headers["if-modified-since"], json!(null));
+    fn cacheable_response_builder() -> http::response::Builder {
+        Response::builder().header(header::CACHE_CONTROL, cacheable_header())
+    }
+
+    fn simple_request_with_etagged_response() -> CachePolicy {
+        CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(cacheable_response_builder().header(header::ETAG, etag_value())),
+        )
+    }
+
+    fn simple_request_with_cacheable_response() -> CachePolicy {
+        CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(cacheable_response_builder()),
+        )
+    }
+
+    fn simple_request_with_always_variable_response() -> CachePolicy {
+        CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(cacheable_response_builder().header(header::VARY, "*")),
+        )
+    }
+
+    fn etag_value() -> &'static str {
+        "\"123456789\""
+    }
+
+    fn cacheable_header() -> &'static str {
+        "max-age=111"
+    }
+
+    fn last_modified_time() -> &'static str {
+        "Tue, 15 Nov 1994 12:45:26 GMT"
+    }
+
+    fn assert_headers_passed(headers: &HeaderMap<HeaderValue>) {
+        assert!(!headers.contains_key(header::CONNECTION));
+        assert_eq!(headers.get("x-custom").unwrap(), "yes");
+    }
+
+    fn assert_no_validators(headers: &HeaderMap<HeaderValue>) {
+        assert!(!headers.contains_key(header::IF_NONE_MATCH));
+        assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
     #[test]
     fn test_ok_if_method_changes_to_head() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let headers = policy.revalidation_headers(&mut request_parts(
+            simple_request_builder().method(Method::HEAD),
+        ));
+
+        assert_headers_passed(&headers);
+        assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), "\"123456789\"");
     }
 
     #[test]
     fn test_not_if_method_mismatch_other_than_head() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let mut incoming_request = request_parts(simple_request_builder().method(Method::POST));
+        let headers = policy.revalidation_headers(&mut incoming_request);
+
+        assert_headers_passed(&headers);
+        assert_no_validators(&headers);
     }
 
     #[test]
     fn test_not_if_url_mismatch() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let mut incoming_request = request_parts(simple_request_builder().uri("/yomomma"));
+        let headers = policy.revalidation_headers(&mut incoming_request);
+
+        assert_headers_passed(&headers);
+        assert_no_validators(&headers);
     }
 
     #[test]
     fn test_not_if_host_mismatch() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let mut incoming_request =
+            request_parts(simple_request_builder().header(header::HOST, "www.w4c.org"));
+        let headers = policy.revalidation_headers(&mut incoming_request);
+
+        assert_headers_passed(&headers);
+        assert_no_validators(&headers);
     }
 
     #[test]
     fn test_not_if_vary_fields_prevent() {
-        assert!(false);
+        let policy = simple_request_with_always_variable_response();
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_headers_passed(&headers);
+        assert_no_validators(&headers);
     }
 
     #[test]
     fn test_when_entity_tag_validator_is_present() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_headers_passed(&headers);
+        assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), "\"123456789\"");
+    }
+
+    #[test]
+    fn test_skips_weak_validators_on_post() {
+        let mut post_request = request_parts(
+            simple_request_builder()
+                .method(Method::POST)
+                .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &post_request,
+            &response_parts(
+                cacheable_response_builder()
+                    .header(header::LAST_MODIFIED, last_modified_time())
+                    .header(header::ETAG, etag_value()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut post_request);
+
+        assert_eq!(
+            headers.get(header::IF_NONE_MATCH).unwrap(),
+            "\"strong\", \"123456789\""
+        );
+        assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
     #[test]
     fn test_skips_weak_validators_on_post_2() {
-        assert!(false);
+        let mut post_request = request_parts(
+            simple_request_builder()
+                .method(Method::POST)
+                .header(header::IF_NONE_MATCH, "W/\"weak\""),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &post_request,
+            &response_parts(
+                cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut post_request);
+
+        assert!(!headers.contains_key(header::IF_NONE_MATCH));
+        assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
     #[test]
     fn test_merges_validators() {
-        assert!(false);
+        let mut post_request = request_parts(
+            simple_request_builder()
+                .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &post_request,
+            &response_parts(
+                cacheable_response_builder()
+                    .header(header::LAST_MODIFIED, last_modified_time())
+                    .header(header::ETAG, etag_value()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut post_request);
+
+        assert_eq!(
+            headers.get(header::IF_NONE_MATCH).unwrap(),
+            "W/\"weak\", \"strong\", W/\"weak2\", \"123456789\""
+        );
+        assert_eq!(
+            headers.get(header::IF_MODIFIED_SINCE).unwrap(),
+            last_modified_time()
+        );
     }
 
     #[test]
     fn test_when_last_modified_validator_is_present() {
-        assert!(false);
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(
+                cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_headers_passed(&headers);
+
+        assert_eq!(
+            headers.get(header::IF_MODIFIED_SINCE).unwrap(),
+            last_modified_time()
+        );
+        assert!(!headers
+            .get(header::WARNING)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("113"));
     }
 
     #[test]
     fn test_not_without_validators() {
-        assert!(false);
+        let policy = simple_request_with_cacheable_response();
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_headers_passed(&headers);
+        assert_no_validators(&headers);
+
+        assert!(!headers
+            .get(header::WARNING)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("113"));
     }
 
     #[test]
     fn test_113_added() {
-        assert!(false);
+        let very_old_response = response_parts(
+            Response::builder()
+                .header(header::AGE, 3600 * 72)
+                .header(header::LAST_MODIFIED, last_modified_time()),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&simple_request(), &very_old_response);
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert!(headers
+            .get(header::WARNING)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("113"));
     }
 
     #[test]
     fn test_removes_warnings() {
-        assert!(false);
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder()),
+            &response_parts(Response::builder().header(header::WARNING, "199 test danger")),
+        );
+
+        assert!(!policy.response_headers().contains_key(header::WARNING));
     }
 
     #[test]
     fn test_must_contain_any_etag() {
-        assert!(false);
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(
+                cacheable_response_builder()
+                    .header(header::LAST_MODIFIED, last_modified_time())
+                    .header(header::ETAG, etag_value()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), etag_value());
     }
 
     #[test]
     fn test_merges_etags() {
-        assert!(false);
+        let policy = simple_request_with_etagged_response();
+
+        let headers = policy.revalidation_headers(&mut request_parts(
+            simple_request_builder()
+                .header(header::HOST, "www.w3c.org")
+                .header(header::IF_NONE_MATCH, "\"foo\", \"bar\""),
+        ));
+
+        assert_eq!(
+            headers.get(header::IF_NONE_MATCH).unwrap(),
+            &format!("\"foo\", \"bar\", {}", etag_value())[..]
+        );
     }
 
     #[test]
     fn test_should_send_the_last_modified_value() {
-        assert!(false);
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &simple_request(),
+            &response_parts(
+                cacheable_response_builder()
+                    .header(header::LAST_MODIFIED, last_modified_time())
+                    .header(header::ETAG, etag_value()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut simple_request());
+
+        assert_eq!(
+            headers.get(header::IF_MODIFIED_SINCE).unwrap(),
+            last_modified_time()
+        );
     }
 
     #[test]
     fn test_should_not_send_the_last_modified_value_for_post() {
-        assert!(false);
+        let mut post_request = request_parts(
+            Request::builder()
+                .method(Method::POST)
+                .header(header::IF_MODIFIED_SINCE, "yesterday"),
+        );
+
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &post_request,
+            &response_parts(
+                cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut post_request);
+
+        assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
     #[test]
     fn test_should_not_send_the_last_modified_value_for_range_request() {
-        assert!(false);
+        let mut range_request = request_parts(
+            Request::builder()
+                .method(Method::GET)
+                .header(header::ACCEPT_RANGES, "1-3")
+                .header(header::IF_MODIFIED_SINCE, "yesterday"),
+        );
+
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &range_request,
+            &response_parts(
+                cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            ),
+        );
+
+        let headers = policy.revalidation_headers(&mut range_request);
+
+        assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
+    /*
     #[test]
     fn test_when_urls_match() {
         let policy = CachePolicy::new(
