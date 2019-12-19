@@ -1964,295 +1964,228 @@ mod tests {
         assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
     }
 
-    /*
     #[test]
     fn test_when_urls_match() {
-        let policy = CachePolicy::new(
-            json!({
-                "url": "/",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "url": "/",
-                "headers": {},
-            })),
-            true
-        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder().uri("/")), &response);
+
+        assert!(policy
+            .is_cached_response_fresh(&mut request_parts(Request::builder().uri("/")), &response));
     }
 
     #[test]
     fn test_when_expires_is_present() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {},
-            }),
-            json!({
-                "status": 302,
-                "headers": {
-                    "expires": "How does time work??", // new Date(Date.now() + 2000).toGMTString()
-                },
-            }),
+        let two_seconds_later = Utc::now()
+            .checked_add_signed(Duration::seconds(2))
+            .unwrap()
+            .to_rfc3339();
+        let response = &response_parts(
+            Response::builder()
+                .status(302)
+                .header(header::EXPIRES, two_seconds_later),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {},
-            })),
-            true
-        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder()), &response);
+
+        assert!(policy.is_cached_response_fresh(&mut request_parts(Request::builder()), &response));
     }
 
     #[test]
     fn test_not_when_urls_mismatch() {
-        let policy = CachePolicy::new(
-            json!({
-                "url": "/foo",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
         );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder().uri("/foo")), &response);
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "url": "/foo?bar",
-                "headers": {},
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().uri("/foo?bar")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_when_methods_match() {
-        let policy = CachePolicy::new(
-            json!({
-                "method": "GET",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "'max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().method(Method::GET)),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "method": "GET",
-                "headers": {},
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().method(Method::GET)),
+            &response,
+        ));
     }
 
     #[test]
     fn test_not_when_hosts_mismatch() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "host": "foo",
-                },
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header(header::HOST, "foo")),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "host": "foo",
-                },
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::HOST, "foo")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "host": "foofoo",
-                },
-            })),
-            true
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::HOST, "foofoo")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_when_methods_match_head() {
-        let policy = CachePolicy::new(
-            json!({
-                "method": "HEAD",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().method(Method::HEAD)),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "method": "HEAD",
-                "headers": {},
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().method(Method::HEAD)),
+            &response,
+        ));
     }
 
     #[test]
     fn test_not_when_methods_mismatch() {
-        let policy = CachePolicy::new(
-            json!({
-                "method": "POST",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().method(Method::POST)),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "method": "GET",
-                "headers": {},
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().method(Method::GET)),
+            &response,
+        ));
     }
 
     #[test]
     fn test_not_when_methods_mismatch_head() {
-        let policy = CachePolicy::new(
-            json!({
-                "method": "HEAD",
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2"),
+        );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().method(Method::HEAD)),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "method": "GET",
-                "headers": {},
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().method(Method::GET)),
+            &response,
+        ));
     }
 
     #[test]
     fn test_not_when_proxy_revalidating() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2, proxy-revalidate ",
-                },
-            }),
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
         );
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder()), &response);
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {},
-            })),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(&mut request_parts(Request::builder()), &response));
     }
 
     #[test]
     fn test_when_not_a_proxy_revalidating() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {},
-            }),
-            json!({
-                "status": 200,
-                "headers": {
-                    "cache-control": "max-age=2, proxy-revalidate ",
-                },
-            }),
-        )
-        .with_shared(false);
-
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {},
-            })),
-            true
+        let response = &response_parts(
+            Response::builder()
+                .status(200)
+                .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
         );
+        let policy = CacheOptions {
+            shared: false,
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder()), &response);
+
+        assert!(policy.is_cached_response_fresh(&mut request_parts(Request::builder()), &response));
     }
 
     #[test]
     fn test_not_when_no_cache_requesting() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {},
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=2",
-                },
-            }),
-        )
-        .with_shared(false);
+        let response =
+            &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=2"));
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(&request_parts(Request::builder()), &response);
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "cache-control": "fine",
-                },
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "fine")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "cache-control": "no-cache",
-                },
-            })),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "no-cache")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "cache-control": "no-cache",
-                },
-            })),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header(header::PRAGMA, "no-cache")),
+            &response,
+        ));
     }
 
+    /*
     lazy_static! {
         static ref SIMPLE_REQUEST_UPDATE: Value = {
             let simple_request = json!({
