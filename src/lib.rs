@@ -2271,380 +2271,333 @@ mod tests {
         assert!(false);
     }
 
+    */
     #[test]
     fn test_vary_basic() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "weather",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "weather"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "nice")),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "bad",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "nice")),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "bad")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_asterisks_does_not_match() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "ok",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "*",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "*"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "ok",
-                },
-            })),
-            false
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "ok")),
+            &response,
         );
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "ok")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_asterisks_is_stale() {
-        let policy_one = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "ok",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "public,max-age=99",
-                    "vary": "*",
-                },
-            }),
+        let policy_one = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "ok")),
+            &response_parts(
+                Response::builder()
+                    .header(header::CACHE_CONTROL, "public,max-age=99")
+                    .header(header::VARY, "*"),
+            ),
         );
 
-        let policy_two = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "ok",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "public,max-age=99",
-                    "vary": "weather",
-                },
-            }),
+        let policy_two = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "ok")),
+            &response_parts(
+                Response::builder()
+                    .header(header::CACHE_CONTROL, "public,max-age=99")
+                    .header(header::VARY, "weather"),
+            ),
         );
 
-        assert_eq!(policy_one.is_stale(), true);
-        assert_eq!(policy_two.is_stale(), false);
+        assert!(policy_one.is_stale());
+        assert!(!policy_two.is_stale());
     }
 
     #[test]
     fn test_values_are_case_sensitive() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "BAD",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "public,max-age=5",
-                    "vary": "Weather",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "public,max-age=5")
+                .header(header::VARY, "weather"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "BAD",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "BAD")),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "bad",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "BAD")),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "bad")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_irrelevant_headers_ignored() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "moon-phase",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "moon-phase"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "bad",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "nice")),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "shining",
-                },
-            })),
-            true
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "bad")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "moon-phase": "full",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "shining")),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("moon-phase", "full")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_absence_is_meaningful() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "moon-phase, weather",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "moon-phase, weather"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(Request::builder().header("weather", "nice")),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                    "moon-phase": "",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "nice")),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {},
-            })),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("weather", "nice")
+                    .header("moon-phase", "")
+            ),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(&mut request_parts(Request::builder()), &response));
     }
 
     #[test]
     fn test_all_values_must_match() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "weather, sun",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "weather, sun"),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice"),
+            ),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "bad",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice")
+            ),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "bad")
+            ),
+            &response,
+        ));
     }
 
     #[test]
     fn test_whitespace_is_okay() {
-        let policy = CachePolicy::new(
-            json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "    weather       ,     sun     ",
-                },
-            }),
+        let response = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "    weather       ,     sun     "),
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            })),
-            true
+        let policy = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice"),
+            ),
+            &response,
         );
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                },
-            })),
-            false
-        );
+        assert!(policy.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice")
+            ),
+            &response,
+        ));
 
-        assert_eq!(
-            policy.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                },
-            })),
-            false
-        );
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("weather", "nice")),
+            &response,
+        ));
+
+        assert!(!policy.is_cached_response_fresh(
+            &mut request_parts(Request::builder().header("sun", "shining")),
+            &response,
+        ));
     }
 
     #[test]
     fn test_order_is_irrelevant() {
-        let policy_one = CachePolicy::new(
-            json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "weather, sun",
-                },
-            }),
+        let response_one = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "weather, sun"),
         );
 
-        let policy_two = CachePolicy::new(
-            json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            }),
-            json!({
-                "headers": {
-                    "cache-control": "max-age=5",
-                    "vary": "sun, weather",
-                },
-            }),
+        let response_two = response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "max-age=5")
+                .header(header::VARY, "sun, weather"),
         );
 
-        assert_eq!(
-            policy_one.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                    "sun": "shining",
-                },
-            })),
-            true
+        let policy_one = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice"),
+            ),
+            &response_one,
         );
 
-        assert_eq!(
-            policy_one.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            })),
-            true
+        let policy_two = CacheOptions {
+            ..CacheOptions::default()
+        }
+        .policy_for(
+            &request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice"),
+            ),
+            &response_two,
         );
 
-        assert_eq!(
-            policy_two.satisfies_without_revalidation(json!({
-                "headers": {
-                    "weather": "nice",
-                    "sun": "shining",
-                },
-            })),
-            true
-        );
+        assert!(policy_one.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("weather", "nice")
+                    .header("sun", "shining")
+            ),
+            &response_one,
+        ));
 
-        assert_eq!(
-            policy_two.satisfies_without_revalidation(json!({
-                "headers": {
-                    "sun": "shining",
-                    "weather": "nice",
-                },
-            })),
-            true
-        );
+        assert!(policy_one.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice")
+            ),
+            &response_one,
+        ));
+
+        assert!(policy_two.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("weather", "nice")
+                    .header("sun", "shining")
+            ),
+            &response_two,
+        ));
+
+        assert!(policy_two.is_cached_response_fresh(
+            &mut request_parts(
+                Request::builder()
+                    .header("sun", "shining")
+                    .header("weather", "nice")
+            ),
+            &response_two,
+        ));
     }
 
+    /*
     #[test]
     fn test_thaw_wrong_object() {
         assert!(false);
