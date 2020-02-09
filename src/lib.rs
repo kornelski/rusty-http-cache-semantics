@@ -11,17 +11,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
 
-trait GetHeaderStr {
-    fn get_str(&self, k: &str) -> Option<&str>;
-}
-
-impl GetHeaderStr for HeaderMap {
-    #[inline]
-    fn get_str(&self, k: &str) -> Option<&str> {
-        self.get(k).and_then(|v| v.to_str().ok())
-    }
-}
-
 // rfc7231 6.1
 const STATUS_CODE_CACHEABLE_BY_DEFAULT: &[u16] =
     &[200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
@@ -86,18 +75,6 @@ fn parse_cache_control<'a>(headers: impl IntoIterator<Item = &'a HeaderValue>) -
         cc.insert("must-revalidate".into(), None);
     }
     cc
-}
-
-fn join<'a>(parts: impl Iterator<Item = &'a str>) -> String {
-    let mut out = String::new();
-    for part in parts {
-        out.reserve(2 + part.len());
-        if !out.is_empty() {
-            out.push_str(", ");
-        }
-        out.push_str(part);
-    }
-    out
 }
 
 fn format_cache_control(cc: &CacheControl) -> String {
@@ -658,4 +635,27 @@ fn get_all_comma<'a>(
     all.into_iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|s| s.split(',').map(str::trim))
+}
+
+trait GetHeaderStr {
+    fn get_str(&self, k: &str) -> Option<&str>;
+}
+
+impl GetHeaderStr for HeaderMap {
+    #[inline]
+    fn get_str(&self, k: &str) -> Option<&str> {
+        self.get(k).and_then(|v| v.to_str().ok())
+    }
+}
+
+fn join<'a>(parts: impl Iterator<Item = &'a str>) -> String {
+    let mut out = String::new();
+    for part in parts {
+        out.reserve(2 + part.len());
+        if !out.is_empty() {
+            out.push_str(", ");
+        }
+        out.push_str(part);
+    }
+    out
 }
