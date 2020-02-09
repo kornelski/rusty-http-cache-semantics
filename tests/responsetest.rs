@@ -101,7 +101,10 @@ fn pre_check_tolerated() {
     assert!(cache.is_stale(now), "{:#?}", cache);
     assert!(!cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 0);
-    assert_eq!(cache.response_headers(now)["cache-control"], cc);
+    assert_eq!(
+        cache.cached_response(now).headers()["cache-control"],
+        cc
+    );
 }
 
 #[test]
@@ -121,7 +124,8 @@ fn pre_check_poison() {
     assert!(cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 100);
 
-    let cc = cache.response_headers(now);
+    let cc = cache.cached_response(now);
+    let cc = cc.headers();
     let cc = cc["cache-control"].to_str().unwrap();
     assert!(!cc.contains("pre-check"));
     assert!(!cc.contains("post-check"));
@@ -131,7 +135,11 @@ fn pre_check_poison() {
     assert!(cc.contains(", custom") || cc.contains("custom, "));
     assert!(cc.contains("foo=bar"));
 
-    assert!(cache.response_headers(now).get("pragma").is_none());
+    assert!(cache
+        .cached_response(now)
+        .headers()
+        .get("pragma")
+        .is_none());
 }
 
 #[test]
@@ -151,9 +159,13 @@ fn pre_check_poison_undefined_header() {
     assert!(cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 0);
 
-    let _cc = &cache.response_headers(now)["cache-control"];
+    let _cc = &cache.cached_response(now).headers()["cache-control"];
 
-    assert!(cache.response_headers(now).get("expires").is_none());
+    assert!(cache
+        .cached_response(now)
+        .headers()
+        .get("expires")
+        .is_none());
 }
 
 #[test]
@@ -632,7 +644,8 @@ fn remove_hop_headers() {
     let cache = CachePolicy::new(&req(), res, Default::default());
 
     now += Duration::from_millis(1005);
-    let h = cache.response_headers(now);
+    let h = cache.cached_response(now);
+    let h = h.headers();
     assert!(h.get("connection").is_none());
     assert!(h.get("te").is_none());
     assert!(h.get("oompa").is_none());
@@ -649,7 +662,7 @@ fn remove_hop_headers() {
     //     JSON.parse(JSON.stringify(cache.toObject()))
     // );
     // assert!(cache2 instanceof TimeTravellingPolicy);
-    // let h2 = cache2.response_headers(now);
+    // let h2 = cache2.cached_response(now).headers();
     // assert.deepEqual(h, h2);
 }
 

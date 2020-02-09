@@ -505,7 +505,10 @@ fn test_get_headers_deletes_cached_100_level_warnings() {
         Default::default(),
     );
 
-    assert_eq!("200 ok ok", policy.response_headers(now)["warning"]);
+    assert_eq!(
+        "200 ok ok",
+        policy.cached_response(now).headers()["warning"]
+    );
 }
 
 #[test]

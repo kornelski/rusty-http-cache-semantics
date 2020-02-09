@@ -423,7 +423,10 @@ impl CachePolicy {
     /// returning it to a client. This function is necessary, because proxies
     /// MUST always remove hop-by-hop headers (such as TE and Connection) and
     /// update response's Age to avoid doubling cache time.
-    pub fn response_headers(&self, now: SystemTime) -> HeaderMap {
+    ///
+    /// It returns response "parts" without a body. You can upgrade it to a full
+    /// response with `Response::from_parts(parts, BYOB)`
+    pub fn cached_response(&self, now: SystemTime) -> http::response::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(&self.res);
         let age = self.age(now);
         let day = Duration::from_secs(3600 * 24);
@@ -446,7 +449,14 @@ impl CachePolicy {
             HeaderValue::from_str(&format!("{}", age.as_secs() as u32)).unwrap(),
         );
         headers.insert("date", HeaderValue::from_str(&date.to_rfc2822()).unwrap());
-        headers
+
+        let mut parts = Response::builder()
+            .status(self.status)
+            .body(())
+            .unwrap()
+            .into_parts().0;
+        parts.headers = headers;
+        parts
     }
 
     /// Value of the Date response header or current time if Date was demed invalid

@@ -30,11 +30,10 @@ Returns `true` if the response can be stored in a cache. If it's `false` then yo
 
 This is the most important method. Use this method to check whether the cached response is still fresh in the context of the new request.
 
-If it returns `true`, then the given `request` matches the original response this cache policy has been created with, and the response can be reused without contacting the server. Note that the old response can't be returned without being updated, see `response_headers()`.
+If it returns `true`, then the given `request` matches the original response this cache policy has been created with, and the response can be reused without contacting the server. Note that the old response can't be returned without being updated, see `cached_response()`.
 
-If it returns `false`, then the response may not be matching at all (e.g. it's for a different URL or method), or may require to be refreshed first (see `revalidation_headers()`).
 
-### `response_headers()`
+### `cached_response()`
 
 Returns updated, filtered set of response headers to return to clients receiving the cached response. This function is necessary, because proxies MUST always remove hop-by-hop headers (such as `TE` and `Connection`) and update response's `Age` to avoid doubling cache time.
 
