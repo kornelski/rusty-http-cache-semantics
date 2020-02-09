@@ -5,7 +5,7 @@ homepage = "https://github.com/kornelski/http-cache-semantics"
 repository = "https://github.com/kornelski/rusty-http-cache-semantics"
 license = "BSD-2-Clause"
 version = "0.1.0"
-authors = ["Kornel <kornel@geekhood.net>"]
+authors = ["Kornel <kornel@geekhood.net>", "Luna Graysen <luna.g@protonmail.com>", "Kat Marchán <kzm@zkat.tech>"]
 edition = "2018"
 categories = ["caching", "web-programming::http-client"]
 keywords = ["http", "cache", "headers", "cache-control", "proxy"]
@@ -15,3 +15,6 @@ readme = "README.md"
 [dependencies]
 chrono = "0.4.10"
 http = "0.2.0"
+
+[dev-dependencies]
+serde_json = "1.0.47"

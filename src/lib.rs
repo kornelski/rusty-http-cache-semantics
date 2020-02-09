@@ -51,7 +51,8 @@ fn parse_cache_control<'a>(headers: impl IntoIterator<Item = &'a HeaderValue>) -
     let mut is_valid = true;
 
     for h in headers.into_iter().filter_map(|v| v.to_str().ok()) {
-        for part in h.split(',') { // TODO: lame parsing
+        for part in h.split(',') {
+            // TODO: lame parsing
             if part.trim().is_empty() {
                 continue;
             }
@@ -68,10 +69,10 @@ fn parse_cache_control<'a>(headers: impl IntoIterator<Item = &'a HeaderValue>) -
                     if e.get().as_deref() != v {
                         is_valid = false;
                     }
-                },
+                }
                 Entry::Vacant(e) => {
                     e.insert(v.map(|v| v.trim_matches('"')).map(From::from)); // TODO: bad unquoting
-                },
+                }
             }
         }
     }
@@ -90,10 +91,15 @@ fn format_cache_control(cc: &CacheControl) -> String {
         out.push_str(k);
         if let Some(v) = v {
             out.push('=');
-            let needs_quote = v.is_empty() || v.as_bytes().iter().any(|b| !b.is_ascii_alphanumeric());
-            if needs_quote { out.push('"'); }
+            let needs_quote =
+                v.is_empty() || v.as_bytes().iter().any(|b| !b.is_ascii_alphanumeric());
+            if needs_quote {
+                out.push('"');
+            }
             out.push_str(v);
-            if needs_quote { out.push('"'); }
+            if needs_quote {
+                out.push('"');
+            }
         }
     }
     out
@@ -181,7 +187,14 @@ impl CachePolicy {
         Self::from_details(uri, method, status, req, res, opts)
     }
 
-    fn from_details(uri: Uri, method: Method, status: StatusCode, req: HeaderMap, mut res: HeaderMap, opts: CachePolicyOptions) -> Self {
+    fn from_details(
+        uri: Uri,
+        method: Method,
+        status: StatusCode,
+        req: HeaderMap,
+        mut res: HeaderMap,
+        opts: CachePolicyOptions,
+    ) -> Self {
         let mut res_cc = parse_cache_control(res.get_all("cache-control"));
         let req_cc = parse_cache_control(req.get_all("cache-control"));
 
@@ -321,10 +334,14 @@ impl CachePolicy {
             // If no value is assigned to max-stale, then the client is willing to accept a stale response of any age.
             let max_stale = req_cc.get("max-stale");
             let has_max_stale = max_stale.is_some();
-            let max_stale = max_stale.and_then(|m| m.as_ref()).and_then(|s| s.parse().ok());
-            let allows_stale = !self.res_cc.contains_key("must-revalidate") && has_max_stale && max_stale.map_or(true, |val| {
-                Duration::from_secs(val) > self.age(now) - self.max_age()
-            });
+            let max_stale = max_stale
+                .and_then(|m| m.as_ref())
+                .and_then(|s| s.parse().ok());
+            let allows_stale = !self.res_cc.contains_key("must-revalidate")
+                && has_max_stale
+                && max_stale.map_or(true, |val| {
+                    Duration::from_secs(val) > self.age(now) - self.max_age()
+                });
             if !allows_stale {
                 return false;
             }
@@ -369,7 +386,9 @@ impl CachePolicy {
     fn copy_without_hop_by_hop_headers(in_headers: &HeaderMap) -> HeaderMap {
         let mut headers = HeaderMap::with_capacity(in_headers.len());
 
-        for (h, v) in in_headers.iter().filter(|(h, _)| !HOP_BY_HOP_HEADERS.contains(&h.as_str()))
+        for (h, v) in in_headers
+            .iter()
+            .filter(|(h, _)| !HOP_BY_HOP_HEADERS.contains(&h.as_str()))
         {
             headers.insert(h.to_owned(), v.to_owned());
         }
@@ -536,7 +555,8 @@ impl CachePolicy {
 
         if let Some(last_modified) = self.res.get_str("last-modified") {
             if let Ok(last_modified) = DateTime::parse_from_rfc2822(last_modified) {
-                let last_modified = SystemTime::UNIX_EPOCH + Duration::from_secs(last_modified.timestamp().max(0) as _);
+                let last_modified = SystemTime::UNIX_EPOCH
+                    + Duration::from_secs(last_modified.timestamp().max(0) as _);
                 if let Ok(diff) = server_date.duration_since(last_modified) {
                     let secs_left = diff.as_secs() as f64 * self.opts.cache_heuristic as f64;
                     return default_min_ttl.max(Duration::from_secs(secs_left as _));
@@ -555,7 +575,9 @@ impl CachePolicy {
     /// client can explicitly allow stale responses, so always check with
     /// `is_cached_response_fresh()`.
     pub fn time_to_live(&self, now: SystemTime) -> Duration {
-        self.max_age().checked_sub(self.age(now)).unwrap_or_default()
+        self.max_age()
+            .checked_sub(self.age(now))
+            .unwrap_or_default()
     }
 
     /// Stale responses shouldn't be used without contacting the server (revalidation)
@@ -752,12 +774,22 @@ pub trait ResponseLike {
 }
 
 impl<Body> RequestLike for Request<Body> {
-    fn uri(&self) -> &Uri { self.uri() }
-    fn method(&self) -> &Method { self.method() }
-    fn headers(&self) -> &HeaderMap { self.headers() }
+    fn uri(&self) -> &Uri {
+        self.uri()
+    }
+    fn method(&self) -> &Method {
+        self.method()
+    }
+    fn headers(&self) -> &HeaderMap {
+        self.headers()
+    }
 }
 
 impl<Body> ResponseLike for Response<Body> {
-    fn status(&self) -> StatusCode { self.status() }
-    fn headers(&self) -> &HeaderMap { self.headers() }
+    fn status(&self) -> StatusCode {
+        self.status()
+    }
+    fn headers(&self) -> &HeaderMap {
+        self.headers()
+    }
 }
