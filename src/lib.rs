@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![deny(unconditional_recursion)]
 //! Tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches.
 //! It's aware of many tricky details such as the `Vary` header, proxy revalidation, and authenticated responses.
 
@@ -580,7 +581,7 @@ impl CachePolicy {
     /// After that time (when `time_to_live() <= 0`) the response might not be
     /// usable without revalidation. However, there are exceptions, e.g. a
     /// client can explicitly allow stale responses, so always check with
-    /// `is_cached_response_fresh()`.
+    /// `satisfies_without_revalidation()`.
     pub fn time_to_live(&self, now: SystemTime) -> Duration {
         self.max_age()
             .checked_sub(self.age(now))
@@ -655,10 +656,10 @@ impl CachePolicy {
     ///
     /// Returns `{policy, modified}` where modified is a boolean indicating
     /// whether the response body has been modified, and old cached body can't be used.
-    pub fn revalidated_policy<ReqB, ResB>(
+    pub fn revalidated_policy<Req: RequestLike, Body>(
         &self,
-        request: &Request<ReqB>,
-        response: &mut Response<ResB>,
+        request: &Req,
+        response: &mut Response<Body>,
     ) -> RevalidatedPolicy {
         let old_etag = self.res.get_str("etag").map(str::trim);
         let old_last_modified = response.headers().get_str("last-modified").map(str::trim);
@@ -792,11 +793,32 @@ impl<Body> RequestLike for Request<Body> {
     }
 }
 
+impl RequestLike for http::request::Parts {
+    fn uri(&self) -> &Uri {
+        &self.uri
+    }
+    fn method(&self) -> &Method {
+        &self.method
+    }
+    fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+}
+
 impl<Body> ResponseLike for Response<Body> {
     fn status(&self) -> StatusCode {
         self.status()
     }
     fn headers(&self) -> &HeaderMap {
         self.headers()
+    }
+}
+
+impl ResponseLike for http::response::Parts {
+    fn status(&self) -> StatusCode {
+        self.status
+    }
+    fn headers(&self) -> &HeaderMap {
+        &self.headers
     }
 }
