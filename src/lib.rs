@@ -187,7 +187,7 @@ impl CachePolicy {
         res: &Res,
         opts: CachePolicyOptions,
     ) -> Self {
-        let uri = req.uri().clone();
+        let uri = req.uri();
         let status = res.status();
         let method = req.method().clone();
         let res = res.headers().clone();
@@ -360,7 +360,7 @@ impl CachePolicy {
 
     fn request_matches<Req: RequestLike>(&self, req: &Req, allow_head_method: bool) -> bool {
         // The presented effective request URI and that of the stored response match, and
-        &self.uri == req.uri() &&
+        req.is_same_uri(&self.uri) &&
             self.req.get("host") == req.headers().get("host") &&
             // the request method associated with the stored response allows it to be used for the presented request, and
             (
@@ -765,8 +765,12 @@ fn join<'a>(parts: impl Iterator<Item = &'a str>) -> String {
 
 /// Allows using either Request or request::Parts, or your own newtype.
 pub trait RequestLike {
-    /// Same as `req.uri()`
-    fn uri(&self) -> &Uri;
+    /// Same as `req.uri().clone()`
+    fn uri(&self) -> Uri;
+    /// Whether the effective request URI matches the other URI
+    ///
+    /// It can be naive string comparison, nothing fancy
+    fn is_same_uri(&self, other: &Uri) -> bool;
     /// Same as `req.method()`
     fn method(&self) -> &Method;
     /// Same as `req.headers()`
@@ -782,8 +786,11 @@ pub trait ResponseLike {
 }
 
 impl<Body> RequestLike for Request<Body> {
-    fn uri(&self) -> &Uri {
-        self.uri()
+    fn uri(&self) -> Uri {
+        self.uri().clone()
+    }
+    fn is_same_uri(&self, other: &Uri) -> bool {
+        self.uri() == other
     }
     fn method(&self) -> &Method {
         self.method()
@@ -794,8 +801,11 @@ impl<Body> RequestLike for Request<Body> {
 }
 
 impl RequestLike for http::request::Parts {
-    fn uri(&self) -> &Uri {
-        &self.uri
+    fn uri(&self) -> Uri {
+        self.uri.clone()
+    }
+    fn is_same_uri(&self, other: &Uri) -> bool {
+        &self.uri == other
     }
     fn method(&self) -> &Method {
         &self.method
@@ -820,5 +830,31 @@ impl ResponseLike for http::response::Parts {
     }
     fn headers(&self) -> &HeaderMap {
         &self.headers
+    }
+}
+
+#[cfg(feature = "reqwest")]
+impl RequestLike for reqwest::Request {
+    fn uri(&self) -> Uri {
+        self.url().as_str().parse().expect("Uri and Url are incompatible!?")
+    }
+    fn is_same_uri(&self, other: &Uri) -> bool {
+        self.url().as_str() == other
+    }
+    fn method(&self) -> &Method {
+        self.method()
+    }
+    fn headers(&self) -> &HeaderMap {
+        self.headers()
+    }
+}
+
+#[cfg(feature = "reqwest")]
+impl ResponseLike for reqwest::Response {
+    fn status(&self) -> StatusCode {
+        self.status()
+    }
+    fn headers(&self) -> &HeaderMap {
+        self.headers()
     }
 }
