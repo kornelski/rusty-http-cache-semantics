@@ -192,7 +192,7 @@ impl CachePolicy {
         }
     }
 
-    pub fn storable(&self) -> bool {
+    pub fn is_storable(&self) -> bool {
         // The "no-store" request directive indicates that a cache MUST NOT store any part of either this request or any response to it.
         !self.req_cc.contains_key("no-store") &&
             // A cache MUST NOT store a response to any request, unless:
@@ -404,7 +404,7 @@ impl CachePolicy {
     }
 
     /// Value of the Age header, in seconds, updated for the current time.
-    fn age(&self, now: SystemTime) -> Duration {
+    pub fn age(&self, now: SystemTime) -> Duration {
         let mut age = self.age_header();
         if let Ok(since_date) = self.opts.response_time.duration_since(self.date()) {
             age = age.max(since_date);
@@ -429,7 +429,7 @@ impl CachePolicy {
     ///
     /// For an up-to-date value, see `time_to_live()`.
     pub fn max_age(&self) -> Duration {
-        if !self.storable() || self.res_cc.contains_key("no-cache") {
+        if !self.is_storable() || self.res_cc.contains_key("no-cache") {
             return Duration::from_secs(0);
         }
 
@@ -499,7 +499,8 @@ impl CachePolicy {
         self.max_age().checked_sub(self.age(now)).unwrap_or_default()
     }
 
-    pub fn stale(&self, now: SystemTime) -> bool {
+    /// Stale responses shouldn't be used without contacting the server (revalidation)
+    pub fn is_stale(&self, now: SystemTime) -> bool {
         self.max_age() <= self.age(now)
     }
 
@@ -515,7 +516,7 @@ impl CachePolicy {
         // This implementation does not understand range requests
         headers.remove("if-range");
 
-        if !self.request_matches(incoming_req, true) || !self.storable() {
+        if !self.request_matches(incoming_req, true) || !self.is_storable() {
             // revalidation allowed via HEAD
             // not for the same resource, or wasn't allowed to be cached anyway
             headers.remove("if-none-match");
