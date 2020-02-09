@@ -638,11 +638,14 @@ fn test_proxy_cacheable_auth_is_ok() {
     assert_eq!(policy.is_stale(now), false);
     assert_eq!(policy.is_storable(), true);
 
-    // let policy_two = CachePolicy::from_object(HashMap::new());
-    // // TODO: assert(cache2 instanceof CachePolicy);
+    #[cfg(feature = "with_serde")]
+    {
+        let json = serde_json::to_string(&policy).unwrap();
+        let policy: CachePolicy = serde_json::from_str(&json).unwrap();
 
-    // assert_eq!(!policy_two.is_stale(now), true);
-    // assert_eq!(policy_two.is_storable(), true);
+        assert_eq!(!policy.is_stale(now), true);
+        assert_eq!(policy.is_storable(), true);
+    }
 }
 
 #[test]
@@ -747,6 +750,7 @@ fn test_simple_hit() {
 
 #[test]
 fn test_weird_syntax() {
+    let now = SystemTime::now();
     let policy = CachePolicy::new(
         &req(json!({
             "method": "GET",
@@ -759,13 +763,18 @@ fn test_weird_syntax() {
         Default::default(),
     );
 
+    assert_eq!(policy.is_stale(now), false);
     assert_eq!(policy.max_age().as_secs(), 456);
 
-    // let policy_two = CachePolicy::from_object(HashMap::new());
-    // TODO: assert(cache2 instanceof CachePolicy);
 
-    // assert_eq!(policy_two.is_stale(now), false);
-    // assert_eq!(policy_two.max_age().as_secs(), 456);
+    #[cfg(feature = "with_serde")]
+    {
+        let json = serde_json::to_string(&policy).unwrap();
+        let policy: CachePolicy = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(policy.is_stale(now), false);
+        assert_eq!(policy.max_age().as_secs(), 456);
+    }
 }
 
 #[test]
