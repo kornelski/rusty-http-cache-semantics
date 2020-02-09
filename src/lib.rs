@@ -131,16 +131,23 @@ pub struct CachePolicy {
 }
 
 impl CachePolicy {
-    pub fn new<ReqBody, ResBody>(
-        req: &Request<ReqBody>,
-        res: &Response<ResBody>,
+    /// Cacheability of an HTTP response depends on how it was requested, so
+    /// both request and response are required to create the policy.
+    #[inline]
+    pub fn new<Req: RequestLike, Res: ResponseLike>(
+        req: &Req,
+        res: &Res,
         opts: CachePolicyOptions,
     ) -> Self {
         let uri = req.uri().clone();
         let status = res.status();
         let method = req.method().clone();
-        let mut res = res.headers().clone();
+        let res = res.headers().clone();
         let req = req.headers().clone();
+        Self::from_details(uri, method, status, req, res, opts)
+    }
+
+    fn from_details(uri: Uri, method: Method, status: StatusCode, req: HeaderMap, mut res: HeaderMap, opts: CachePolicyOptions) -> Self {
         let mut res_cc = parse_cache_control(res.get_all("cache-control"));
         let req_cc = parse_cache_control(req.get_all("cache-control"));
 
@@ -223,18 +230,18 @@ impl CachePolicy {
             || self.res.contains_key("expires")
     }
 
-    pub fn satisfies_without_revalidation<Body>(
+    pub fn satisfies_without_revalidation<Req: RequestLike>(
         &self,
-        req: &Request<Body>,
+        req: &Req,
         now: SystemTime,
     ) -> bool {
+        let req_headers = req.headers();
         // When presented with a request, a cache MUST NOT reuse a stored response, unless:
         // the presented request does not contain the no-cache pragma (Section 5.4), nor the no-cache cache directive,
         // unless the stored response is successfully validated (Section 4.3), and
-        let req_cc = parse_cache_control(req.headers().get_all("cache-control"));
+        let req_cc = parse_cache_control(req_headers.get_all("cache-control"));
         if req_cc.contains_key("no-cache")
-            || req
-                .headers()
+            || req_headers
                 .get_str("pragma")
                 .map_or(false, |v| v.contains("no-cache"))
         {
@@ -278,7 +285,7 @@ impl CachePolicy {
         self.request_matches(req, false)
     }
 
-    fn request_matches<Body>(&self, req: &Request<Body>, allow_head_method: bool) -> bool {
+    fn request_matches<Req: RequestLike>(&self, req: &Req, allow_head_method: bool) -> bool {
         // The presented effective request URI and that of the stored response match, and
         &self.uri == req.uri() &&
             self.req.get("host") == req.headers().get("host") &&
@@ -297,7 +304,7 @@ impl CachePolicy {
             || self.res_cc.contains_key("s-maxage")
     }
 
-    fn vary_matches<Body>(&self, req: &Request<Body>) -> bool {
+    fn vary_matches<Req: RequestLike>(&self, req: &Req) -> bool {
         for name in get_all_comma(self.res.get_all("vary")) {
             // A Vary header field-value of "*" always fails to match
             if name == "*" {
@@ -502,7 +509,7 @@ impl CachePolicy {
     /// Hop by hop headers are always stripped.
     /// Revalidation headers may be added or removed, depending on request.
     ///
-    pub fn revalidation_headers<Body>(&self, incoming_req: &Request<Body>) -> HeaderMap {
+    pub fn revalidation_headers<Req: RequestLike>(&self, incoming_req: &Req) -> HeaderMap {
         let mut headers = Self::copy_without_hop_by_hop_headers(incoming_req.headers());
 
         // This implementation does not understand range requests
@@ -561,8 +568,8 @@ impl CachePolicy {
     /// whether the response body has been modified, and old cached body can't be used.
     pub fn revalidated_policy<ReqB, ResB>(
         &self,
-        request: Request<ReqB>,
-        mut response: Response<ResB>,
+        request: &Request<ReqB>,
+        response: &mut Response<ResB>,
     ) -> RevalidatedPolicy {
         let old_etag = self.res.get_str("etag").map(str::trim);
         let old_last_modified = response.headers().get_str("last-modified").map(str::trim);
@@ -613,7 +620,7 @@ impl CachePolicy {
         }
 
         RevalidatedPolicy {
-            policy: CachePolicy::new(&request, &response, self.opts),
+            policy: CachePolicy::new(request, &*response, self.opts),
             // Client receiving 304 without body, even if it's invalid/mismatched has no option
             // but to reuse a cached body. We don't have a good way to tell clients to do
             // error recovery in such case.
@@ -658,4 +665,33 @@ fn join<'a>(parts: impl Iterator<Item = &'a str>) -> String {
         out.push_str(part);
     }
     out
+}
+
+/// Allows using either Request or request::Parts, or your own newtype.
+pub trait RequestLike {
+    /// Same as `req.uri()`
+    fn uri(&self) -> &Uri;
+    /// Same as `req.method()`
+    fn method(&self) -> &Method;
+    /// Same as `req.headers()`
+    fn headers(&self) -> &HeaderMap;
+}
+
+/// Allows using either Response or response::Parts, or your own newtype.
+pub trait ResponseLike {
+    /// Same as `res.status()`
+    fn status(&self) -> StatusCode;
+    /// Same as `res.headers()`
+    fn headers(&self) -> &HeaderMap;
+}
+
+impl<Body> RequestLike for Request<Body> {
+    fn uri(&self) -> &Uri { self.uri() }
+    fn method(&self) -> &Method { self.method() }
+    fn headers(&self) -> &HeaderMap { self.headers() }
+}
+
+impl<Body> ResponseLike for Response<Body> {
+    fn status(&self) -> StatusCode { self.status() }
+    fn headers(&self) -> &HeaderMap { self.headers() }
 }
