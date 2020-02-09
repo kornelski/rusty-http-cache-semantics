@@ -1,0 +1,17 @@
+[package]
+name = "http-cache-semantics"
+description = "RFC 7234. Parses HTTP headers to correctly compute cacheability of responses, even in complex cases"
+homepage = "https://github.com/kornelski/http-cache-semantics"
+repository = "https://github.com/kornelski/rusty-http-cache-semantics"
+license = "BSD-2-Clause"
+version = "0.1.0"
+authors = ["Kornel <kornel@geekhood.net>"]
+edition = "2018"
+categories = ["caching", "web-programming::http-client"]
+keywords = ["http", "cache", "headers", "cache-control", "proxy"]
+include = ["Cargo.toml", "src/*.rs", "tests/responsetest.rs"]
+readme = "README.md"
+
+[dependencies]
+chrono = "0.4.10"
+http = "0.2.0"
