@@ -32,6 +32,7 @@ This is the most important method. Use this method to check whether the cached r
 
 If it returns `true`, then the given `request` matches the original response this cache policy has been created with, and the response can be reused without contacting the server. Note that the old response can't be returned without being updated, see `cached_response()`.
 
+If it returns `false`, then the response may not be matching at all (e.g. it's for a different URL or method), or may require to be refreshed first (see `revalidation_request()`).
 
 ### `cached_response()`
 
@@ -49,7 +50,7 @@ When a cached response has expired, it can be made fresh again by making a reque
 
 The following methods help perform the update efficiently and correctly.
 
-#### `revalidation_headers(new_request)`
+#### `revalidation_request(new_request)`
 
 Returns updated, filtered set of request headers to send to the origin server to check if the cached response can be reused. These headers allow the origin server to return status 304 indicating the response is still fresh. All headers unrelated to caching are passed through as-is.
 
@@ -62,7 +63,7 @@ Use this method to update the cache after receiving a new response from the orig
 -   `policy` — A new `CachePolicy` with HTTP headers updated from `revalidation_response`. You can always replace the old cached `CachePolicy` with the new one.
 -   `modified` — Boolean indicating whether the response body has changed.
     -   If `false`, then a valid 304 Not Modified response has been received, and you can reuse the old cached response body.
-    -   If `true`, you should use new response's body (if present), or make another request to the origin server without any conditional headers (i.e. don't use `revalidation_headers()` this time) to get the new resource.
+    -   If `true`, you should use new response's body (if present), or make another request to the origin server without any conditional headers (i.e. don't use `revalidation_request()` this time) to get the new resource.
 
 
 # Yo, FRESH

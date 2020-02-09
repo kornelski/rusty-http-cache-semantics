@@ -609,7 +609,9 @@ impl CachePolicy {
     /// Hop by hop headers are always stripped.
     /// Revalidation headers may be added or removed, depending on request.
     ///
-    pub fn revalidation_headers<Req: RequestLike>(&self, incoming_req: &Req) -> HeaderMap {
+    /// It returns request "parts" without a body. You can upgrade it to a full
+    /// response with `Request::from_parts(parts, BYOB)` (the body is usually `()`).
+    pub fn revalidation_request<Req: RequestLike>(&self, incoming_req: &Req) -> http::request::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(incoming_req.headers());
 
         // This implementation does not understand range requests
@@ -620,7 +622,7 @@ impl CachePolicy {
             // not for the same resource, or wasn't allowed to be cached anyway
             headers.remove("if-none-match");
             headers.remove("if-modified-since");
-            return headers;
+            return self.request_from_headers(headers);
         }
 
         /* MUST send that entity-tag in any cache validation request (using If-Match or If-None-Match) if an entity-tag has been provided by the origin server. */
@@ -657,8 +659,18 @@ impl CachePolicy {
                 );
             }
         }
+        self.request_from_headers(headers)
+    }
 
-        headers
+    fn request_from_headers(&self, headers: HeaderMap) -> http::request::Parts {
+        let mut parts = Request::builder()
+            .method(self.method.clone())
+            .uri(self.uri.clone())
+            .body(())
+            .unwrap()
+            .into_parts().0;
+        parts.headers = headers;
+        parts
     }
 
     /// Creates `CachePolicy` with information combined from the previews response,
