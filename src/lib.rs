@@ -252,9 +252,9 @@ impl CachePolicy {
                 // contains a max-age response directive, or
                 // contains a s-maxage response directive and the cache is shared, or
                 // contains a public response directive.
-                self.res_cc.contains_key("public") ||
                 self.res_cc.contains_key("max-age") ||
-                self.res_cc.contains_key("s-maxage") ||
+                (self.opts.shared && self.res_cc.contains_key("s-maxage")) ||
+                self.res_cc.contains_key("public") ||
                 // has a status code that is defined as cacheable by default
                 STATUS_CODE_CACHEABLE_BY_DEFAULT.contains(&self.status.as_u16()))
     }
@@ -317,15 +317,16 @@ impl CachePolicy {
 
         // the stored response is either:
         // fresh, or allowed to be served stale
-        if let Some(max_stale) = req_cc.get("max-stale") {
-            if !self.res_cc.contains_key("must-revalidate") && self.stale(now) {
-                let max_stale = max_stale.as_ref().and_then(|s| s.parse().ok());
-                let allows_stale = max_stale.map_or(true, |val| {
-                    Duration::from_secs(val) > self.age(now) - self.max_age()
-                });
-                if !allows_stale {
-                    return false;
-                }
+        if self.is_stale(now) {
+            // If no value is assigned to max-stale, then the client is willing to accept a stale response of any age.
+            let max_stale = req_cc.get("max-stale");
+            let has_max_stale = max_stale.is_some();
+            let max_stale = max_stale.and_then(|m| m.as_ref()).and_then(|s| s.parse().ok());
+            let allows_stale = !self.res_cc.contains_key("must-revalidate") && has_max_stale && max_stale.map_or(true, |val| {
+                Duration::from_secs(val) > self.age(now) - self.max_age()
+            });
+            if !allows_stale {
+                return false;
             }
         }
 
@@ -380,7 +381,7 @@ impl CachePolicy {
 
         let new_warnings = join(
             get_all_comma(in_headers.get_all("warning")).filter(|warning| {
-                warning.trim_start().starts_with('1') // FIXME: match 100-199, not 1 or 1000
+                !warning.trim_start().starts_with('1') // FIXME: match 100-199, not 1 or 1000
             }),
         );
         if new_warnings.is_empty() {
