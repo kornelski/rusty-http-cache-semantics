@@ -678,15 +678,19 @@ impl CachePolicy {
     ///
     /// Returns `{policy, modified}` where modified is a boolean indicating
     /// whether the response body has been modified, and old cached body can't be used.
-    pub fn revalidated_policy<Req: RequestLike, Body>(
+    pub fn revalidated_policy<Req: RequestLike, Res: ResponseLike>(
         &self,
         request: &Req,
-        response: &mut Response<Body>,
+        response: &Res,
+        response_time: SystemTime
     ) -> RevalidatedPolicy {
-        let old_etag = self.res.get_str("etag").map(str::trim);
-        let old_last_modified = response.headers().get_str("last-modified").map(str::trim);
-        let new_etag = response.headers().get_str("new_etag").map(str::trim);
-        let new_last_modified = response.headers().get_str("last-modified").map(str::trim);
+        let response_headers = response.headers();
+        let mut response_status = response.status();
+
+        let old_etag = &self.res.get_str("etag").map(str::trim);
+        let old_last_modified = response_headers.get_str("last-modified").map(str::trim);
+        let new_etag = response_headers.get_str("etag").map(str::trim);
+        let new_last_modified = response_headers.get_str("last-modified").map(str::trim);
 
         // These aren't going to be supported exactly, since one CachePolicy object
         // doesn't know about all the other cached objects.
@@ -720,19 +724,33 @@ impl CachePolicy {
         }
 
         let modified = response.status() != StatusCode::NOT_MODIFIED;
-        if matches {
+        let new_response_headers = if matches {
+            let mut new_response_headers = HeaderMap::with_capacity(self.res.keys_len());
             // use other header fields provided in the 304 (Not Modified) response to replace all instances
             // of the corresponding header fields in the stored response.
-            for (h, v) in &self.res {
-                if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&&h.as_str()) {
-                    response.headers_mut().insert(h.to_owned(), v.to_owned());
+            for (header, old_value) in &self.res {
+                let header = header.to_owned();
+                if let Some(new_value) = response_headers.get(&header) {
+                    if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&&header.as_str()) {
+                        new_response_headers.insert(header, new_value.to_owned());
+                        continue;
+                    }
                 }
+                new_response_headers.insert(header, old_value.to_owned());
             }
-            *response.status_mut() = self.status;
-        }
+            response_status = self.status;
+            new_response_headers
+        } else {
+            response_headers.clone()
+        };
+
+        let mut new_response = Response::builder().status(response_status).body(()).unwrap().into_parts().0;
+        new_response.headers = new_response_headers;
+        let mut new_options = self.opts;
+        new_options.response_time = response_time;
 
         RevalidatedPolicy {
-            policy: CachePolicy::new(request, &*response, self.opts),
+            policy: CachePolicy::new(request, &new_response, new_options),
             // Client receiving 304 without body, even if it's invalid/mismatched has no option
             // but to reuse a cached body. We don't have a good way to tell clients to do
             // error recovery in such case.
