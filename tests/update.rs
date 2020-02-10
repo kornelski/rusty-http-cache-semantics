@@ -1,7 +1,8 @@
 use http::header::HeaderName;
 use http::request::Parts as RequestParts;
 use http::{header, HeaderMap, Request, Response};
-use http_cache_semantics::CacheOptions;
+use http_cache_semantics::CachePolicy;
+use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
     builder.body(()).unwrap().into_parts().0
@@ -29,35 +30,12 @@ fn simple_request_builder_for_update(
     builder
 }
 
-fn cacheable_response_builder() -> http::response::Builder {
-    Response::builder().header(header::CACHE_CONTROL, cacheable_header())
-}
-
 fn cacheable_response_builder_for_update() -> http::response::Builder {
     Response::builder().header(header::CACHE_CONTROL, "max-age=111")
 }
 
-fn cacheable_header() -> &'static str {
-    "max-age=111"
-}
-
 fn etagged_response_builder() -> http::response::Builder {
     cacheable_response_builder_for_update().header(header::ETAG, "\"123456789\"")
-}
-
-fn weak_tagged_response_builder() -> http::response::Builder {
-    cacheable_response_builder_for_update().header(header::ETAG, "W/\"123456789\"")
-}
-
-fn last_modified_response_builder() -> http::response::Builder {
-    cacheable_response_builder_for_update()
-        .header(header::LAST_MODIFIED, "Tue, 15 Nov 1994 12:45:26 GMT")
-}
-
-fn multivalidator_response_builder() -> http::response::Builder {
-    cacheable_response_builder()
-        .header(header::ETAG, "\"123456789\"")
-        .header(header::LAST_MODIFIED, "Tue, 15 Nov 1994 12:45:26 GMT")
 }
 
 fn request_parts_from_headers(headers: HeaderMap) -> RequestParts {
@@ -81,26 +59,28 @@ fn not_modified_response_headers_for_update(
     second_request_builder: http::request::Builder,
     second_response_builder: http::response::Builder,
 ) -> Option<HeaderMap> {
-    let policy = CacheOptions {
-        ..CacheOptions::default()
-    }
-    .policy_for(
+    let now = SystemTime::now();
+    let policy = CachePolicy::new(
         &request_parts(first_request_builder),
         &response_parts(first_response_builder),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut request_parts(second_request_builder));
+    let headers = policy
+        .revalidation_request(&request_parts(second_request_builder))
+        .headers;
 
-    let (new_cache, is_modified) = revalidate(
-        &mut request_parts_from_headers(headers),
-        &mut response_parts(second_response_builder),
+    let rev = policy.revalidated_policy(
+        &request_parts_from_headers(headers),
+        &response_parts(second_response_builder),
+        now,
     );
 
-    if is_modified {
+    if rev.modified {
         return None;
     }
 
-    Some(new_cache.response_headers())
+    Some(rev.policy.cached_response(now).headers)
 }
 
 fn assert_updates(
@@ -112,32 +92,27 @@ fn assert_updates(
     let extended_second_response_builder = second_response_builder
         .header(HeaderName::from_static("foo"), "updated")
         .header(HeaderName::from_static("x-ignore-new"), "ignoreme");
+    let etag_built = extended_second_response_builder
+        .headers_ref()
+        .unwrap()
+        .get(header::ETAG)
+        .unwrap()
+        .clone();
 
-    let headers_opt = not_modified_response_headers_for_update(
+    let headers = not_modified_response_headers_for_update(
         first_request_builder,
         first_response_builder
             .header(HeaderName::from_static("foo"), "original")
             .header(HeaderName::from_static("x-other"), "original"),
         second_request_builder,
         extended_second_response_builder,
-    );
-    assert!(headers_opt.is_some());
-    let headers = match headers_opt {
-        Some(x) => x,
-        None => panic!(),
-    };
+    )
+    .expect("not_modified_response_headers_for_update");
+
     assert_eq!(headers.get("foo").unwrap(), "updated");
     assert_eq!(headers.get("x-other").unwrap(), "original");
     assert!(headers.get("x-ignore-new").is_none());
-    assert_eq!(
-        headers.get(header::ETAG).unwrap(),
-        extended_second_response_builder
-            .borrow()
-            .headers_ref()
-            .unwrap()
-            .get(header::ETAG)
-            .unwrap()
-    );
+    assert_eq!(headers.get(header::ETAG).unwrap(), etag_built);
 }
 
 #[test]
@@ -146,53 +121,6 @@ fn test_matching_etags_are_updated() {
         simple_request_builder_for_update(None),
         etagged_response_builder(),
         simple_request_builder_for_update(None),
-        etagged_response_builder(),
+        etagged_response_builder().status(http::StatusCode::NOT_MODIFIED),
     );
 }
-
-/*
-#[test]
-fn test_matching_weak_etags_are_updated() {
-    assert!(false);
-}
-
-#[test]
-fn test_matching_last_mod_are_updated() {
-    assert!(false);
-}
-
-#[test]
-fn test_both_matching_are_updated() {
-    assert!(false);
-}
-
-#[test]
-fn test_check_status() {
-    assert!(false);
-}
-
-#[test]
-fn test_last_mod_ignored_if_etag_is_wrong() {
-    assert!(false);
-}
-
-#[test]
-fn test_ignored_if_validator_is_missing() {
-    assert!(false);
-}
-
-#[test]
-fn test_skips_update_of_content_length() {
-    assert!(false);
-}
-
-#[test]
-fn test_ignored_if_validator_is_different() {
-    assert!(false);
-}
-
-#[test]
-fn test_ignored_if_validator_does_not_match() {
-    assert!(false);
-}
-*/

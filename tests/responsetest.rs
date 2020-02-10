@@ -77,7 +77,9 @@ fn iis() {
         &req().into_parts().0,
         &headers! {
             "cache-control": "private, public, max-age=259200"
-        }.into_parts().0,
+        }
+        .into_parts()
+        .0,
         CachePolicyOptions {
             shared: false,
             ..Default::default()

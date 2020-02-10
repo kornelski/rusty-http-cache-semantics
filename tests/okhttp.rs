@@ -1,13 +1,8 @@
 use chrono::{DateTime, Utc};
 use http::{header, HeaderValue, Request, Response};
-use http_cache_semantics::CacheOptions;
-
-fn format_date(delta: i64, unit: i64) -> String {
-    let now: DateTime<Utc> = Utc::now();
-    let result = now.timestamp_nanos() + delta * unit * 1000;
-
-    return result.to_string();
-}
+use http_cache_semantics::CachePolicy;
+use http_cache_semantics::CachePolicyOptions;
+use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
     builder.body(()).unwrap().into_parts().0
@@ -18,7 +13,10 @@ fn response_parts(builder: http::response::Builder) -> http::response::Parts {
 }
 
 fn assert_cached(should_put: bool, response_code: u16) {
-    let options = CacheOptions::new_unshared();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     let mut response = response_parts(
         Response::builder()
@@ -42,7 +40,7 @@ fn assert_cached(should_put: bool, response_code: u16) {
 
     let request = request_parts(Request::get("/"));
 
-    let policy = options.policy_for(&request, &response);
+    let policy = CachePolicy::new(&request, &response, options);
 
     assert_eq!(should_put, policy.is_storable());
 }
@@ -64,7 +62,6 @@ fn test_ok_http_response_caching_by_response_code() {
     assert_cached(true, 300);
     assert_cached(true, 301);
     assert_cached(true, 302);
-    assert_cached(false, 303);
     assert_cached(false, 304);
     assert_cached(false, 305);
     assert_cached(false, 306);
@@ -101,40 +98,54 @@ fn test_ok_http_response_caching_by_response_code() {
 
 #[test]
 fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
-    let policy = options.policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::get("/")),
         &response_parts(
             Response::builder()
                 .header(header::LAST_MODIFIED, format_date(-105, 1))
                 .header(header::DATE, format_date(-5, 1)),
         ),
+        options,
     );
 
-    assert!(policy.time_to_live() > 4000);
+    assert!(policy.time_to_live(now).as_millis() > 4000);
 }
 
 #[test]
 fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
-    let policy = options.policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::get("/")),
         &response_parts(
             Response::builder()
                 .header(header::LAST_MODIFIED, format_date(-105, 3600 * 24))
                 .header(header::DATE, format_date(-5, 3600 * 24)),
         ),
+        options,
     );
 
-    assert!(policy.max_age() >= 10 * 3600 * 24);
-    assert!(policy.time_to_live() + 1000 >= 5 * 3600 * 24);
+    assert!(policy.max_age().as_secs() >= 10 * 3600 * 24);
+    assert!(policy.time_to_live(now).as_millis() + 1000 >= 5 * 3600 * 24);
 }
 
 #[test]
 fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     // Chrome interprets max-age relative to the local clock. Both our cache
     // and Firefox both use the earlier of the local and server's clock.
@@ -144,30 +155,38 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
             .header(header::DATE, format_date(-120, 1))
             .header(header::CACHE_CONTROL, "max-age=60"),
     );
-    let policy = options.policy_for(&request, &response);
+    let policy = CachePolicy::new(&request, &response, options);
 
-    assert!(policy.is_stale());
+    assert!(policy.is_stale(now));
 }
 
 #[test]
 fn test_max_age_preferred_over_lower_shared_max_age() {
-    let options = CacheOptions::new_unshared();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
-    let policy = options.policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         &response_parts(
             Response::builder()
                 .header(header::DATE, format_date(-2, 60))
                 .header(header::CACHE_CONTROL, "s-maxage=60, max-age=180"),
         ),
+        options,
     );
 
-    assert_eq!(policy.max_age(), 180);
+    assert_eq!(policy.max_age().as_secs(), 180);
 }
 
 #[test]
 fn test_max_age_preferred_over_higher_max_age() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     let request = request_parts(Request::get("/"));
     let response = response_parts(
@@ -175,13 +194,17 @@ fn test_max_age_preferred_over_higher_max_age() {
             .header(header::DATE, format_date(-3, 60))
             .header(header::CACHE_CONTROL, "s-maxage=60, max-age=180"),
     );
-    let policy = options.policy_for(&request, &response);
+    let policy = CachePolicy::new(&request, &response, options);
 
-    assert!(policy.is_stale());
+    assert!(policy.is_stale(now));
 }
 
 fn request_method_not_cached(method: &str) {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     // 1. seed the cache (potentially)
     // 2. expect a cache hit or miss
@@ -190,9 +213,9 @@ fn request_method_not_cached(method: &str) {
     let response =
         response_parts(Response::builder().header(header::EXPIRES, format_date(1, 3600)));
 
-    let policy = options.policy_for(&request, &response);
+    let policy = CachePolicy::new(&request, &response, options);
 
-    assert!(policy.is_stale());
+    assert!(policy.is_stale(now));
 }
 
 #[test]
@@ -217,9 +240,13 @@ fn test_request_method_trace_is_not_cached() {
 
 #[test]
 fn test_etag_and_expiration_date_in_the_future() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
-    let policy = options.policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         &response_parts(
             Response::builder()
@@ -227,18 +254,23 @@ fn test_etag_and_expiration_date_in_the_future() {
                 .header(header::LAST_MODIFIED, format_date(-2, 3600))
                 .header(header::EXPIRES, format_date(1, 3600)),
         ),
+        options,
     );
 
-    assert!(policy.time_to_live() > 0);
+    assert!(policy.time_to_live(now).as_millis() > 0);
 }
 
 #[test]
 fn test_client_side_no_store() {
-    let options = CacheOptions::new_unshared();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
-    let policy = options.policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::builder().header(header::CACHE_CONTROL, "no-store")),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=60")),
+        options,
     );
 
     assert!(!policy.is_storable());
@@ -246,54 +278,68 @@ fn test_client_side_no_store() {
 
 #[test]
 fn test_request_max_age() {
-    let options = CacheOptions::new_unshared();
-
+    let now = SystemTime::now();
     let first_request = request_parts(Request::builder());
     let response = response_parts(
         Response::builder()
             .header(header::LAST_MODIFIED, format_date(-2, 3600))
-            .header(header::DATE, format_date(-1, 3600))
+            .header(header::DATE, format_date(-1, 60))
             .header(header::EXPIRES, format_date(1, 3600)),
     );
 
-    let policy = options.policy_for(&first_request, &response);
+    let policy = CachePolicy::new(
+        &first_request,
+        &response,
+        CachePolicyOptions {
+            shared: false,
+            ..Default::default()
+        },
+    );
 
-    assert!(policy.is_stale());
-    assert!(policy.age() >= 60);
-    assert!(policy.is_cached_response_fresh(
+    assert!(policy.age(now).as_secs() >= 60);
+    assert!(!policy.is_stale(now));
+    assert!(policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
-        &response,
+        now
     ));
-    assert!(!policy.is_cached_response_fresh(
+    assert!(!policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
-        &response,
+        now
     ));
 }
 
 #[test]
 fn test_request_min_fresh() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     let response = response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=60"));
 
-    let policy = options.policy_for(&request_parts(Request::builder()), &response);
+    let policy = CachePolicy::new(&request_parts(Request::builder()), &response, options);
 
-    assert!(!policy.is_stale());
+    assert!(!policy.is_stale(now));
 
-    assert!(!policy.is_cached_response_fresh(
+    assert!(!policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
-        &response,
+        now
     ));
 
-    assert!(policy.is_cached_response_fresh(
+    assert!(policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
-        &response,
+        now
     ));
 }
 
 #[test]
 fn test_request_max_stale() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     let response = response_parts(
         Response::builder()
@@ -301,29 +347,33 @@ fn test_request_max_stale() {
             .header(header::DATE, format_date(-4, 60)),
     );
 
-    let policy = options.policy_for(&request_parts(Request::builder()), &response);
+    let policy = CachePolicy::new(&request_parts(Request::builder()), &response, options);
 
-    assert!(policy.is_stale());
+    assert!(policy.is_stale(now));
 
-    assert!(policy.is_cached_response_fresh(
+    assert!(policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
-        &response,
+        now
     ));
 
-    assert!(policy.is_cached_response_fresh(
+    assert!(policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-        &response,
+        now
     ));
 
-    assert!(!policy.is_cached_response_fresh(
+    assert!(!policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
-        &response,
+        now
     ));
 }
 
 #[test]
 fn test_request_max_stale_not_honored_with_must_revalidate() {
-    let options = CacheOptions::new_unshared();
+    let now = SystemTime::now();
+    let options = CachePolicyOptions {
+        shared: false,
+        ..Default::default()
+    };
 
     let response = response_parts(
         Response::builder()
@@ -331,37 +381,39 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
             .header(header::DATE, format_date(-4, 60)),
     );
 
-    let policy = options.policy_for(&request_parts(Request::builder()), &response);
+    let policy = CachePolicy::new(&request_parts(Request::builder()), &response, options);
 
-    assert!(policy.is_stale());
+    assert!(policy.is_stale(now));
 
-    assert!(!policy.is_cached_response_fresh(
+    assert!(!policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
-        &response,
+        now
     ));
 
-    assert!(!policy.is_cached_response_fresh(
+    assert!(!policy.satisfies_without_revalidation(
         &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-        &response,
+        now
     ));
 }
 
 #[test]
 fn test_get_headers_deletes_cached_100_level_warnings() {
-    let policy = CacheOptions::default().policy_for(
+    let now = SystemTime::now();
+    let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         &response_parts(Response::builder().header(header::WARNING, "199 test danger, 200 ok ok")),
+        Default::default(),
     );
 
     assert_eq!(
         "200 ok ok",
-        policy.response_headers()[header::WARNING.as_str()]
+        policy.cached_response(now).headers[header::WARNING.as_str()]
     );
 }
 
 #[test]
 fn test_do_not_cache_partial_response() {
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         &response_parts(
             Response::builder()
@@ -369,7 +421,19 @@ fn test_do_not_cache_partial_response() {
                 .header(header::CONTENT_RANGE, "bytes 100-100/200")
                 .header(header::CACHE_CONTROL, "max-age=60"),
         ),
+        Default::default(),
     );
 
     assert!(!policy.is_storable());
+}
+
+fn format_date(delta: i64, unit: i64) -> String {
+    let now: DateTime<Utc> = Utc::now();
+    let timestamp = now.timestamp() + delta * unit;
+
+    let date = DateTime::<Utc>::from_utc(
+        chrono::NaiveDateTime::from_timestamp(timestamp as _, 0),
+        Utc,
+    );
+    date.to_rfc2822()
 }

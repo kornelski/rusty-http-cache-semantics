@@ -48,7 +48,6 @@ fn req(json: Value) -> Request<()> {
 }
 
 fn assert_cached(should_put: bool, response_code: i32) {
-
     let mut response = json!({
         "headers": {
             "last-modified": format_date(-105, 1),
@@ -769,7 +768,6 @@ fn test_weird_syntax() {
     assert_eq!(policy.is_stale(now), false);
     assert_eq!(policy.max_age().as_secs(), 456);
 
-
     #[cfg(feature = "with_serde")]
     {
         let json = serde_json::to_string(&policy).unwrap();
@@ -797,34 +795,6 @@ fn test_quoted_syntax() {
 
     assert_eq!(policy.is_stale(now), false);
     assert_eq!(policy.max_age().as_secs(), 678);
-}
-
-#[test]
-fn test_pre_check_poison_undefined_header() {
-    let now = SystemTime::now();
-    let original_cache_control = json!("pre-check=0, post-check=0, no-cache, no-store");
-    let response = &res(json!({
-        "headers": {
-            "cache-control": original_cache_control,
-            "expires": "yesterday!"
-        }
-    }));
-
-    let policy = CachePolicy::new(
-        &req(json!({
-            "method": "GET",
-            "headers": {},
-        })),
-        response,
-        CachePolicyOptions {
-            ignore_cargo_cult: true,
-            ..Default::default()
-        },
-    );
-
-    assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.is_storable(), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
 }
 
 #[test]

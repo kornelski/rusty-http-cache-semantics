@@ -1,5 +1,6 @@
 use http::{header, HeaderMap, HeaderValue, Method, Request, Response};
-use http_cache_semantics::{CacheOptions, CachePolicy};
+use http_cache_semantics::CachePolicy;
+use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
     builder.body(()).unwrap().into_parts().0
@@ -27,23 +28,26 @@ fn cacheable_response_builder() -> http::response::Builder {
 }
 
 fn simple_request_with_etagged_response() -> CachePolicy {
-    CacheOptions::default().policy_for(
+    CachePolicy::new(
         &simple_request(),
         &response_parts(cacheable_response_builder().header(header::ETAG, etag_value())),
+        Default::default(),
     )
 }
 
 fn simple_request_with_cacheable_response() -> CachePolicy {
-    CacheOptions::default().policy_for(
+    CachePolicy::new(
         &simple_request(),
         &response_parts(cacheable_response_builder()),
+        Default::default(),
     )
 }
 
 fn simple_request_with_always_variable_response() -> CachePolicy {
-    CacheOptions::default().policy_for(
+    CachePolicy::new(
         &simple_request(),
         &response_parts(cacheable_response_builder().header(header::VARY, "*")),
+        Default::default(),
     )
 }
 
@@ -55,7 +59,7 @@ fn cacheable_header() -> &'static str {
     "max-age=111"
 }
 
-fn last_modified_time() -> &'static str {
+fn very_old_date() -> &'static str {
     "Tue, 15 Nov 1994 12:45:26 GMT"
 }
 
@@ -73,9 +77,11 @@ fn assert_no_validators(headers: &HeaderMap<HeaderValue>) {
 fn test_ok_if_method_changes_to_head() {
     let policy = simple_request_with_etagged_response();
 
-    let headers = policy.revalidation_headers(&mut request_parts(
-        simple_request_builder().method(Method::HEAD),
-    ));
+    let headers = policy
+        .revalidation_request(&mut request_parts(
+            simple_request_builder().method(Method::HEAD),
+        ))
+        .headers;
 
     assert_headers_passed(&headers);
     assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), "\"123456789\"");
@@ -85,8 +91,8 @@ fn test_ok_if_method_changes_to_head() {
 fn test_not_if_method_mismatch_other_than_head() {
     let policy = simple_request_with_etagged_response();
 
-    let mut incoming_request = request_parts(simple_request_builder().method(Method::POST));
-    let headers = policy.revalidation_headers(&mut incoming_request);
+    let incoming_request = request_parts(simple_request_builder().method(Method::POST));
+    let headers = policy.revalidation_request(&incoming_request).headers;
 
     assert_headers_passed(&headers);
     assert_no_validators(&headers);
@@ -96,8 +102,8 @@ fn test_not_if_method_mismatch_other_than_head() {
 fn test_not_if_url_mismatch() {
     let policy = simple_request_with_etagged_response();
 
-    let mut incoming_request = request_parts(simple_request_builder().uri("/yomomma"));
-    let headers = policy.revalidation_headers(&mut incoming_request);
+    let incoming_request = request_parts(simple_request_builder().uri("/yomomma"));
+    let headers = policy.revalidation_request(&incoming_request).headers;
 
     assert_headers_passed(&headers);
     assert_no_validators(&headers);
@@ -107,19 +113,21 @@ fn test_not_if_url_mismatch() {
 fn test_not_if_host_mismatch() {
     let policy = simple_request_with_etagged_response();
 
-    let mut incoming_request =
-        request_parts(simple_request_builder().header(header::HOST, "www.w4c.org"));
-    let headers = policy.revalidation_headers(&mut incoming_request);
+    let mut incoming_request = request_parts(simple_request_builder());
+    incoming_request
+        .headers
+        .insert(header::HOST, "www.w4c.org".parse().unwrap());
+    let headers = policy.revalidation_request(dbg!(&incoming_request)).headers;
 
-    assert_headers_passed(&headers);
     assert_no_validators(&headers);
+    assert!(headers.contains_key("x-custom"));
 }
 
 #[test]
 fn test_not_if_vary_fields_prevent() {
     let policy = simple_request_with_always_variable_response();
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_headers_passed(&headers);
     assert_no_validators(&headers);
@@ -129,7 +137,7 @@ fn test_not_if_vary_fields_prevent() {
 fn test_when_entity_tag_validator_is_present() {
     let policy = simple_request_with_etagged_response();
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_headers_passed(&headers);
     assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), "\"123456789\"");
@@ -142,16 +150,17 @@ fn test_skips_weak_validators_on_post() {
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
     );
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &post_request,
         &response_parts(
             cacheable_response_builder()
-                .header(header::LAST_MODIFIED, last_modified_time())
+                .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut post_request);
+    let headers = policy.revalidation_request(&mut post_request).headers;
 
     assert_eq!(
         headers.get(header::IF_NONE_MATCH).unwrap(),
@@ -167,14 +176,15 @@ fn test_skips_weak_validators_on_post_2() {
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\""),
     );
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &post_request,
         &response_parts(
-            cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut post_request);
+    let headers = policy.revalidation_request(&mut post_request).headers;
 
     assert!(!headers.contains_key(header::IF_NONE_MATCH));
     assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
@@ -186,16 +196,17 @@ fn test_merges_validators() {
         simple_request_builder()
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
     );
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &post_request,
         &response_parts(
             cacheable_response_builder()
-                .header(header::LAST_MODIFIED, last_modified_time())
+                .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut post_request);
+    let headers = policy.revalidation_request(&mut post_request).headers;
 
     assert_eq!(
         headers.get(header::IF_NONE_MATCH).unwrap(),
@@ -203,61 +214,56 @@ fn test_merges_validators() {
     );
     assert_eq!(
         headers.get(header::IF_MODIFIED_SINCE).unwrap(),
-        last_modified_time()
+        very_old_date()
     );
 }
 
 #[test]
 fn test_when_last_modified_validator_is_present() {
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &simple_request(),
         &response_parts(
-            cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_headers_passed(&headers);
 
     assert_eq!(
         headers.get(header::IF_MODIFIED_SINCE).unwrap(),
-        last_modified_time()
+        very_old_date()
     );
-    assert!(!headers
-        .get(header::WARNING)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains("113"));
+    let warn = headers.get(header::WARNING);
+    assert!(warn.is_none() || !warn.unwrap().to_str().unwrap().contains("113"));
 }
 
 #[test]
 fn test_not_without_validators() {
     let policy = simple_request_with_cacheable_response();
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_headers_passed(&headers);
     assert_no_validators(&headers);
 
-    assert!(!headers
-        .get(header::WARNING)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains("113"));
+    let warn = headers.get(header::WARNING);
+
+    assert!(warn.is_none() || !warn.unwrap().to_str().unwrap().contains("113"));
 }
 
 #[test]
 fn test_113_added() {
+    let now = SystemTime::now();
     let very_old_response = response_parts(
         Response::builder()
             .header(header::AGE, 3600 * 72)
-            .header(header::LAST_MODIFIED, last_modified_time()),
+            .header(header::LAST_MODIFIED, very_old_date()),
     );
-    let policy = CacheOptions::default().policy_for(&simple_request(), &very_old_response);
+    let policy = CachePolicy::new(&simple_request(), &very_old_response, Default::default());
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.cached_response(now).headers;
 
     assert!(headers
         .get(header::WARNING)
@@ -269,26 +275,32 @@ fn test_113_added() {
 
 #[test]
 fn test_removes_warnings() {
-    let policy = CacheOptions::default().policy_for(
+    let now = SystemTime::now();
+    let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         &response_parts(Response::builder().header(header::WARNING, "199 test danger")),
+        Default::default(),
     );
 
-    assert!(!policy.response_headers().contains_key(header::WARNING));
+    assert!(!policy
+        .cached_response(now)
+        .headers
+        .contains_key(header::WARNING));
 }
 
 #[test]
 fn test_must_contain_any_etag() {
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &simple_request(),
         &response_parts(
             cacheable_response_builder()
-                .header(header::LAST_MODIFIED, last_modified_time())
+                .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), etag_value());
 }
@@ -297,11 +309,13 @@ fn test_must_contain_any_etag() {
 fn test_merges_etags() {
     let policy = simple_request_with_etagged_response();
 
-    let headers = policy.revalidation_headers(&mut request_parts(
-        simple_request_builder()
-            .header(header::HOST, "www.w3c.org")
-            .header(header::IF_NONE_MATCH, "\"foo\", \"bar\""),
-    ));
+    let headers = policy
+        .revalidation_request(&mut request_parts(
+            simple_request_builder()
+                .header(header::HOST, "www.w3c.org")
+                .header(header::IF_NONE_MATCH, "\"foo\", \"bar\""),
+        ))
+        .headers;
 
     assert_eq!(
         headers.get(header::IF_NONE_MATCH).unwrap(),
@@ -311,20 +325,21 @@ fn test_merges_etags() {
 
 #[test]
 fn test_should_send_the_last_modified_value() {
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &simple_request(),
         &response_parts(
             cacheable_response_builder()
-                .header(header::LAST_MODIFIED, last_modified_time())
+                .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut simple_request());
+    let headers = policy.revalidation_request(&simple_request()).headers;
 
     assert_eq!(
         headers.get(header::IF_MODIFIED_SINCE).unwrap(),
-        last_modified_time()
+        very_old_date()
     );
 }
 
@@ -336,14 +351,15 @@ fn test_should_not_send_the_last_modified_value_for_post() {
             .header(header::IF_MODIFIED_SINCE, "yesterday"),
     );
 
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &post_request,
         &response_parts(
-            cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut post_request);
+    let headers = policy.revalidation_request(&mut post_request).headers;
 
     assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
 }
@@ -357,14 +373,15 @@ fn test_should_not_send_the_last_modified_value_for_range_request() {
             .header(header::IF_MODIFIED_SINCE, "yesterday"),
     );
 
-    let policy = CacheOptions::default().policy_for(
+    let policy = CachePolicy::new(
         &range_request,
         &response_parts(
-            cacheable_response_builder().header(header::LAST_MODIFIED, last_modified_time()),
+            cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
+        Default::default(),
     );
 
-    let headers = policy.revalidation_headers(&mut range_request);
+    let headers = policy.revalidation_request(&mut range_request).headers;
 
     assert!(!headers.contains_key(header::IF_MODIFIED_SINCE));
 }
