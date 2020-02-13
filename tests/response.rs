@@ -87,7 +87,12 @@ fn test_pre_check_tolerated() {
     assert!(!policy.is_storable());
     assert_eq!(policy.max_age().as_secs(), 0);
     assert_eq!(
-        policy.cached_response(now).headers[header::CACHE_CONTROL.as_str()],
+        get_cached_response(
+            &policy,
+            &request_parts(Request::builder().header("cache-control", "max-stale")),
+            now
+        )
+        .headers[header::CACHE_CONTROL.as_str()],
         cache_control
     );
 }
@@ -115,7 +120,8 @@ fn test_pre_check_poison() {
     assert!(policy.is_storable());
     assert_eq!(policy.max_age().as_secs(), 100);
 
-    let cache_control_header = &policy.cached_response(now).headers[header::CACHE_CONTROL.as_str()];
+    let res = get_cached_response(&policy, &request_parts(Request::builder()), now);
+    let cache_control_header = &res.headers[header::CACHE_CONTROL.as_str()];
     assert!(!cache_control_header.to_str().unwrap().contains("pre-check"));
     assert!(!cache_control_header
         .to_str()
@@ -130,10 +136,7 @@ fn test_pre_check_poison() {
     assert!(cache_control_header.to_str().unwrap().contains("custom"));
     assert!(cache_control_header.to_str().unwrap().contains("foo=bar"));
 
-    assert!(!policy
-        .cached_response(now)
-        .headers
-        .contains_key(header::PRAGMA.as_str()));
+    assert!(!res.headers.contains_key(header::PRAGMA.as_str()));
 }
 
 #[test]
@@ -567,4 +570,15 @@ fn test_max_age_wins_over_future_expires() {
 
     assert!(!policy.is_stale(now));
     assert_eq!(policy.max_age().as_secs(), 333);
+}
+
+fn get_cached_response(
+    policy: &CachePolicy,
+    req: &impl http_cache_semantics::RequestLike,
+    now: SystemTime,
+) -> http::response::Parts {
+    match policy.before_request(req, now) {
+        http_cache_semantics::BeforeRequest::Fresh(res) => res,
+        _ => panic!("stale"),
+    }
 }

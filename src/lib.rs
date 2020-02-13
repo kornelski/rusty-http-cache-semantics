@@ -301,14 +301,21 @@ impl CachePolicy {
     pub fn before_request<Req: RequestLike>(&self, req: &Req, now: SystemTime) -> BeforeRequest {
         let req_headers = req.headers();
 
-        if self.request_matches(req, false) {
-            if self.satisfies_without_revalidation(&req_headers, now) {
-                BeforeRequest::Fresh(self.cached_response(now))
-            } else {
-                BeforeRequest::Stale(self.revalidation_request(req))
+        // revalidation allowed via HEAD
+        let (exact_match, may_revalidate) = self.request_matches(req);
+
+        if exact_match && self.satisfies_without_revalidation(&req_headers, now) {
+            BeforeRequest::Fresh(self.cached_response(now))
+        } else if may_revalidate {
+            BeforeRequest::Stale {
+                request: self.revalidation_request(req),
+                matches: false,
             }
         } else {
-            BeforeRequest::Stale(self.request_from_headers(req_headers.clone()))
+            BeforeRequest::Stale {
+                request: self.request_from_headers(req_headers.clone()),
+                matches: false,
+            }
         }
     }
 
@@ -367,16 +374,17 @@ impl CachePolicy {
         true
     }
 
-    fn request_matches<Req: RequestLike>(&self, req: &Req, allow_head_method: bool) -> bool {
+    /// returns: matches including method, matches allowing head
+    fn request_matches<Req: RequestLike>(&self, req: &Req) -> (bool, bool) {
         // The presented effective request URI and that of the stored response match, and
-        req.is_same_uri(&self.uri) &&
-            self.req.get("host") == req.headers().get("host") &&
-            // the request method associated with the stored response allows it to be used for the presented request, and
-            (
-                self.method == req.method() ||
-                (allow_head_method && Method::HEAD == req.method())) &&
+        let matches = req.is_same_uri(&self.uri) &&
+            (self.req.get("host") == req.headers().get("host")) &&
             // selecting header fields nominated by the stored response (if any) match those presented, and
-            self.vary_matches(req)
+            self.vary_matches(req);
+        let exact_match = matches && self.method == req.method();
+
+        // the request method associated with the stored response allows it to be used for the presented request, and
+        (exact_match, exact_match || Method::HEAD == req.method())
     }
 
     fn allows_storing_authenticated(&self) -> bool {
@@ -435,7 +443,7 @@ impl CachePolicy {
     ///
     /// It returns response "parts" without a body. You can upgrade it to a full
     /// response with `Response::from_parts(parts, BYOB)`
-    pub fn cached_response(&self, now: SystemTime) -> http::response::Parts {
+    fn cached_response(&self, now: SystemTime) -> http::response::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(&self.res);
         let age = self.age(now);
         let day = Duration::from_secs(3600 * 24);
@@ -620,17 +628,13 @@ impl CachePolicy {
     ///
     /// It returns request "parts" without a body. You can upgrade it to a full
     /// response with `Request::from_parts(parts, BYOB)` (the body is usually `()`).
-    pub fn revalidation_request<Req: RequestLike>(
-        &self,
-        incoming_req: &Req,
-    ) -> http::request::Parts {
+    fn revalidation_request<Req: RequestLike>(&self, incoming_req: &Req) -> http::request::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(incoming_req.headers());
 
         // This implementation does not understand range requests
         headers.remove("if-range");
 
-        if !self.request_matches(incoming_req, true) || !self.is_storable() {
-            // revalidation allowed via HEAD
+        if !self.is_storable() {
             // not for the same resource, or wasn't allowed to be cached anyway
             headers.remove("if-none-match");
             headers.remove("if-modified-since");
@@ -770,7 +774,7 @@ impl CachePolicy {
     }
 }
 
-/// New policy and flags
+/// New policy and flags to act on `after_response()`
 pub enum AfterResponse {
     /// You can use the cached body! Make sure to use these updated headers
     NotModified(CachePolicy, http::response::Parts),
@@ -814,7 +818,13 @@ pub enum BeforeRequest {
     /// Good news! You can use it with body from the cache. No need to contact the server.
     Fresh(http::response::Parts),
     /// You must send the request to the server first.
-    Stale(http::request::Parts),
+    Stale {
+        /// Send this request to the server (it has added revalidation headers when appropriate)
+        request: http::request::Parts,
+        /// If `false`, request was for some other resource that isn't
+        /// semantically the same as previously cached request+response
+        matches: bool,
+    },
 }
 
 impl BeforeRequest {

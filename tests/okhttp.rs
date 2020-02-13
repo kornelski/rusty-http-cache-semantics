@@ -418,14 +418,19 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
 fn test_get_headers_deletes_cached_100_level_warnings() {
     let now = SystemTime::now();
     let policy = CachePolicy::new(
-        &request_parts(Request::builder()),
-        &response_parts(Response::builder().header(header::WARNING, "199 test danger, 200 ok ok")),
+        &request_parts(Request::builder().header("cache-control", "max-stale")),
+        &response_parts(
+            Response::builder()
+                .header("cache-control", "immutable")
+                .header(header::WARNING, "199 test danger, 200 ok ok"),
+        ),
         Default::default(),
     );
 
     assert_eq!(
         "200 ok ok",
-        policy.cached_response(now).headers[header::WARNING.as_str()]
+        get_cached_response(&policy, &request_parts(Request::builder()), now).headers
+            [header::WARNING.as_str()]
     );
 }
 
@@ -454,4 +459,15 @@ fn format_date(delta: i64, unit: i64) -> String {
         Utc,
     );
     date.to_rfc2822()
+}
+
+fn get_cached_response(
+    policy: &CachePolicy,
+    req: &impl http_cache_semantics::RequestLike,
+    now: SystemTime,
+) -> http::response::Parts {
+    match policy.before_request(req, now) {
+        http_cache_semantics::BeforeRequest::Fresh(res) => res,
+        _ => panic!("stale"),
+    }
 }

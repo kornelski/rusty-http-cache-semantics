@@ -103,7 +103,18 @@ fn pre_check_tolerated() {
     assert!(cache.is_stale(now), "{:#?}", cache);
     assert!(!cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 0);
-    assert_eq!(cache.cached_response(now).headers()["cache-control"], cc);
+    assert_eq!(
+        get_cached_response(
+            &cache,
+            &Request::get("http://test.example.com/")
+                .header("cache-control", "max-stale")
+                .body(())
+                .unwrap(),
+            now
+        )
+        .headers()["cache-control"],
+        cc
+    );
 }
 
 #[test]
@@ -123,7 +134,7 @@ fn pre_check_poison() {
     assert!(cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 100);
 
-    let cc = cache.cached_response(now);
+    let cc = get_cached_response(&cache, &req(), now);
     let cc = cc.headers();
     let cc = cc["cache-control"].to_str().unwrap();
     assert!(!cc.contains("pre-check"));
@@ -134,7 +145,17 @@ fn pre_check_poison() {
     assert!(cc.contains(", custom") || cc.contains("custom, "));
     assert!(cc.contains("foo=bar"));
 
-    assert!(cache.cached_response(now).headers().get("pragma").is_none());
+    assert!(get_cached_response(
+        &cache,
+        &Request::get("http://test.example.com/")
+            .header("cache-control", "max-stale")
+            .body(())
+            .unwrap(),
+        now
+    )
+    .headers()
+    .get("pragma")
+    .is_none());
 }
 
 #[test]
@@ -154,13 +175,17 @@ fn pre_check_poison_undefined_header() {
     assert!(cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 0);
 
-    let _cc = &cache.cached_response(now).headers()["cache-control"];
+    let res = &get_cached_response(
+        &cache,
+        &Request::get("http://test.example.com/")
+            .header("cache-control", "max-stale")
+            .body(())
+            .unwrap(),
+        now,
+    );
+    let _cc = &res.headers()["cache-control"];
 
-    assert!(cache
-        .cached_response(now)
-        .headers()
-        .get("expires")
-        .is_none());
+    assert!(res.headers().get("expires").is_none());
 }
 
 #[test]
@@ -639,7 +664,7 @@ fn remove_hop_headers() {
     let cache = CachePolicy::new(&req(), res, Default::default());
 
     now += Duration::from_millis(1005);
-    let h = cache.cached_response(now);
+    let h = get_cached_response(&cache, &req(), now);
     let h = h.headers();
     assert!(h.get("connection").is_none());
     assert!(h.get("te").is_none());
@@ -668,4 +693,15 @@ fn date_str(now: SystemTime) -> String {
         .as_secs();
     let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp as _, 0), Utc);
     date.to_rfc2822()
+}
+
+fn get_cached_response(
+    policy: &CachePolicy,
+    req: &impl http_cache_semantics::RequestLike,
+    now: SystemTime,
+) -> http::response::Parts {
+    match policy.before_request(req, now) {
+        http_cache_semantics::BeforeRequest::Fresh(res) => res,
+        _ => panic!("stale"),
+    }
 }

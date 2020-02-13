@@ -77,6 +77,68 @@ fn test_when_methods_match() {
 }
 
 #[test]
+fn must_revalidate_allows_not_revalidating_fresh() {
+    let now = SystemTime::now();
+    let response = &response_parts(
+        Response::builder()
+            .status(200)
+            .header(header::CACHE_CONTROL, "max-age=200, must-revalidate"),
+    );
+    let policy = CachePolicy::new(
+        &request_parts(Request::builder().method(Method::GET)),
+        response,
+        Default::default(),
+    );
+
+    assert!(policy
+        .before_request(&request_parts(Request::builder().method(Method::GET)), now)
+        .satisfies_without_revalidation());
+
+    let later = now + std::time::Duration::from_secs(300);
+    assert!(!policy
+        .before_request(
+            &request_parts(Request::builder().method(Method::GET)),
+            later
+        )
+        .satisfies_without_revalidation());
+}
+
+#[test]
+fn must_revalidate_disallows_stale() {
+    let now = SystemTime::now();
+    let response = &response_parts(
+        Response::builder()
+            .status(200)
+            .header(header::CACHE_CONTROL, "max-age=200, must-revalidate"),
+    );
+    let policy = CachePolicy::new(
+        &request_parts(Request::builder().method(Method::GET)),
+        response,
+        Default::default(),
+    );
+
+    let later = now + std::time::Duration::from_secs(300);
+    assert!(!policy
+        .before_request(
+            &request_parts(Request::builder().method(Method::GET)),
+            later
+        )
+        .satisfies_without_revalidation());
+
+    let later = now + std::time::Duration::from_secs(300);
+    assert!(!policy
+        .before_request(
+            &request_parts(
+                Request::builder()
+                    .header("cache-control", "max-stale")
+                    .method(Method::GET)
+            ),
+            later
+        )
+        .satisfies_without_revalidation());
+}
+
+#[test]
 fn test_not_when_hosts_mismatch() {
     let now = SystemTime::now();
     let response = &response_parts(

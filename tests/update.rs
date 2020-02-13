@@ -3,6 +3,7 @@ use http::request::Parts as RequestParts;
 use http::{header, HeaderMap, Request, Response};
 use http_cache_semantics::AfterResponse;
 use http_cache_semantics::CachePolicy;
+use std::time::Duration;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -67,9 +68,12 @@ fn not_modified_response_headers_for_update(
         Default::default(),
     );
 
-    let headers = policy
-        .revalidation_request(&request_parts(second_request_builder))
-        .headers;
+    let headers = get_revalidation_request(
+        &policy,
+        &request_parts(second_request_builder),
+        now + Duration::from_secs(3600 * 24),
+    )
+    .headers;
 
     let rev = policy.after_response(
         &request_parts_from_headers(headers),
@@ -123,4 +127,20 @@ fn test_matching_etags_are_updated() {
         simple_request_builder_for_update(None),
         etagged_response_builder().status(http::StatusCode::NOT_MODIFIED),
     );
+}
+
+fn get_revalidation_request(
+    policy: &CachePolicy,
+    req: &(impl http_cache_semantics::RequestLike + std::fmt::Debug),
+    now: SystemTime,
+) -> http::request::Parts {
+    match policy.before_request(req, now) {
+        http_cache_semantics::BeforeRequest::Stale { request, matches } => {
+            if !matches {
+                eprintln!("warning: req doesn't match {:#?} vs {:?}", req, policy);
+            }
+            request
+        }
+        _ => panic!("no revalidation needed"),
+    }
 }

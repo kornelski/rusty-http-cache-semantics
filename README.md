@@ -56,7 +56,7 @@ Returns updated, filtered set of request headers to send to the origin server to
 
 Use this method when updating cache from the origin server.
 
-#### `revalidated_policy(revalidation_request, revalidation_response)`
+#### `after_response(revalidation_request, revalidation_response)`
 
 Use this method to update the cache after receiving a new response from the origin server. It returns an object with:
 

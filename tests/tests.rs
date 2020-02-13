@@ -510,25 +510,6 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
 }
 
 #[test]
-fn test_get_headers_deletes_cached_100_level_warnings() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "warning": "199 test danger, 200 ok ok",
-            }
-        })),
-        Default::default(),
-    );
-
-    assert_eq!(
-        "200 ok ok",
-        policy.cached_response(now).headers()["warning"]
-    );
-}
-
-#[test]
 fn test_do_not_cache_partial_response() {
     let policy = CachePolicy::new(
         &Request::get("http://example.com").body(()).unwrap(),
