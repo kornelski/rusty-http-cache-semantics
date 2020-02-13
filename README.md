@@ -20,8 +20,6 @@ If `options.shared` is `true` (default), then the response is evaluated from a p
 
 If `options.ignore_cargo_cult` is true, common anti-cache directives will be completely ignored if the non-standard `pre-check` and `post-check` directives are present. These two useless directives are most commonly found in bad StackOverflow answers and PHP's "session limiter" defaults.
 
-If `options.trust_server_date` is false, then server's `Date` header won't be used as the base for `max-age`. This is against the RFC, but it's useful if you want to cache responses with very short `max-age`, but your local clock is not exactly in sync with the server's.
-
 ### `storable()`
 
 Returns `true` if the response can be stored in a cache. If it's `false` then you MUST NOT store either the request or the response.

@@ -133,11 +133,6 @@ pub struct CacheOptions {
     /// found in bad StackOverflow answers and PHP's "session limiter"
     /// defaults.
     pub ignore_cargo_cult: bool,
-    /// If `trust_server_date` is `false`, then server's `Date` header won't
-    /// be used as the base for `max-age`. This is against the RFC, but it's
-    /// useful if you want to cache responses with very short `max-age`, but
-    /// your local clock is not exactly in sync with the server's.
-    pub trust_server_date: bool,
 }
 
 impl Default for CacheOptions {
@@ -147,7 +142,6 @@ impl Default for CacheOptions {
             cache_heuristic: 0.1, // 10% matches IE
             immutable_min_time_to_live: Duration::from_secs(24 * 3600),
             ignore_cargo_cult: false,
-            trust_server_date: true,
         }
     }
 }
@@ -497,17 +491,7 @@ impl CachePolicy {
         parts
     }
 
-    /// Value of the Date response header or current time if Date was demed invalid
-    ///
-    fn date(&self) -> SystemTime {
-        if self.opts.trust_server_date {
-            self.server_date()
-        } else {
-            self.response_time
-        }
-    }
-
-    fn server_date(&self) -> SystemTime {
+    fn raw_server_date(&self) -> SystemTime {
         let date = self
             .res
             .get_str("date")
@@ -515,29 +499,14 @@ impl CachePolicy {
             .and_then(|d| {
                 SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(d.timestamp() as _))
             });
-        if let Some(date) = date {
-            let max_clock_drift = Duration::from_secs(8 * 3600);
-            let clock_drift = if self.response_time > date {
-                self.response_time.duration_since(date)
-            } else {
-                date.duration_since(self.response_time)
-            }
-            .unwrap();
-            if clock_drift < max_clock_drift {
-                return date;
-            }
-        }
-        self.response_time
+        return date.unwrap_or(self.response_time)
     }
 
     /// Tells how long the response has been sitting in cache(s).
     ///
     /// Value of the `Age` header, updated for the current time.
     pub fn age(&self, now: SystemTime) -> Duration {
-        let mut age = self.age_header();
-        if let Ok(since_date) = self.response_time.duration_since(self.date()) {
-            age = age.max(since_date);
-        }
+        let mut age = self.age_header_value();
 
         if let Ok(resident_time) = now.duration_since(self.response_time) {
             age += resident_time;
@@ -545,7 +514,7 @@ impl CachePolicy {
         age
     }
 
-    fn age_header(&self) -> Duration {
+    fn age_header_value(&self) -> Duration {
         Duration::from_secs(
             self.res
                 .get_str("age")
@@ -599,7 +568,7 @@ impl CachePolicy {
             Duration::from_secs(0)
         };
 
-        let server_date = self.server_date();
+        let server_date = self.raw_server_date();
         if let Some(expires) = self.res.get_str("expires") {
             return match DateTime::parse_from_rfc2822(expires) {
                 // A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").

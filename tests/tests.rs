@@ -179,28 +179,6 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
 }
 
 #[test]
-fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
-    let now = SystemTime::now();
-    // Chrome interprets max-age relative to the local clock. Both our cache
-    // and Firefox both use the earlier of the local and server's clock.
-    let policy = CachePolicy::new_options(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "date": format_date(-120, 1),
-                "cache-control": "max-age=60",
-            }
-        })),
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert!(policy.is_stale(now));
-}
-
-#[test]
 fn test_max_age_preferred_over_lower_shared_max_age() {
     let now = SystemTime::now();
     let policy = CachePolicy::new_options(
@@ -218,26 +196,6 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
         },
     );
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 180);
-}
-
-#[test]
-fn test_max_age_preferred_over_higher_max_age() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new_options(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "date": format_date(-3, 60),
-                "cache-control": "s-maxage=60, max-age=180",
-            }
-        })),
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert!(policy.is_stale(now));
 }
 
 fn request_method_not_cached(method: String) {
@@ -328,56 +286,6 @@ fn test_client_side_no_store() {
 }
 
 #[test]
-fn test_request_max_age() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new_options(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "last-modified": format_date(-2, 3600),
-                "date": format_date(-1, 60),
-                "expires": format_date(1, 3600),
-            }
-        })),
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert_eq!(policy.is_stale(now), false);
-    assert!(policy.age(now).as_secs() >= 60);
-
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "max-age=90",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
-
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "max-age=30",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        false
-    );
-}
-
-#[test]
 fn test_request_min_fresh() {
     let now = SystemTime::now();
     let policy = CachePolicy::new_options(
@@ -422,107 +330,6 @@ fn test_request_min_fresh() {
             .satisfies_without_revalidation(),
         false
     );
-}
-
-#[test]
-fn test_request_max_stale() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new_options(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "cache-control": "max-age=120",
-                "date": format_date(-4, 60),
-            }
-        })),
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert!(policy.is_stale(now));
-
-    assert!(policy
-        .before_request(
-            &req(json!({
-                "headers": {
-                    "cache-control": "max-stale=180",
-                },
-            })),
-            now
-        )
-        .satisfies_without_revalidation());
-
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "max-stale",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
-
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "max-stale=10",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        false
-    );
-}
-
-#[test]
-fn test_request_max_stale_not_honored_with_must_revalidate() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new_options(
-        &Request::get("http://example.com").body(()).unwrap(),
-        &res(json!({
-            "headers": {
-                "cache-control": "max-age=120, must-revalidate",
-                "date": format_date(-4, 60),
-            }
-        })),
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert!(policy.is_stale(now));
-
-    assert!(!policy
-        .before_request(
-            &req(json!({
-                "headers": {
-                    "cache-control": "max-stale=180",
-                },
-            })),
-            now
-        )
-        .satisfies_without_revalidation());
-
-    assert!(!policy
-        .before_request(
-            &req(json!({
-                "headers": {
-                    "cache-control": "max-stale",
-                },
-            })),
-            now
-        )
-        .satisfies_without_revalidation());
 }
 
 #[test]

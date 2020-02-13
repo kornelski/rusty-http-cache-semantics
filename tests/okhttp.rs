@@ -155,7 +155,7 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
     let request = request_parts(Request::get("/"));
     let response = response_parts(
         Response::builder()
-            .header(header::DATE, format_date(-120, 1))
+            .header(header::AGE, 120)
             .header(header::CACHE_CONTROL, "max-age=60"),
     );
     let policy = CachePolicy::new_options(&request, &response, now, options);
@@ -196,7 +196,7 @@ fn test_max_age_preferred_over_higher_max_age() {
     let request = request_parts(Request::get("/"));
     let response = response_parts(
         Response::builder()
-            .header(header::DATE, format_date(-3, 60))
+            .header(header::AGE, 3*60)
             .header(header::CACHE_CONTROL, "s-maxage=60, max-age=180"),
     );
     let policy = CachePolicy::new_options(&request, &response, now, options);
@@ -291,7 +291,8 @@ fn test_request_max_age() {
     let response = response_parts(
         Response::builder()
             .header(header::LAST_MODIFIED, format_date(-2, 3600))
-            .header(header::DATE, format_date(-1, 60))
+            .header(header::DATE, format_date(9, 60))
+            .header(header::AGE, 60)
             .header(header::EXPIRES, format_date(1, 3600)),
     );
 
@@ -305,7 +306,8 @@ fn test_request_max_age() {
         },
     );
 
-    assert!(policy.age(now).as_secs() >= 60);
+    assert_eq!(policy.age(now).as_secs(), 60);
+    assert_eq!(policy.time_to_live(now).as_secs(), 3000);
     assert!(!policy.is_stale(now));
     assert!(policy
         .before_request(
@@ -362,7 +364,7 @@ fn test_request_max_stale() {
     let response = response_parts(
         Response::builder()
             .header(header::CACHE_CONTROL, "max-age=120")
-            .header(header::DATE, format_date(-4, 60)),
+            .header(header::AGE, 4*60),
     );
 
     let policy =
@@ -403,7 +405,8 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
     let response = response_parts(
         Response::builder()
             .header(header::CACHE_CONTROL, "max-age=120, must-revalidate")
-            .header(header::DATE, format_date(-4, 60)),
+            .header(header::DATE, format_date(15, 60))
+            .header(header::AGE, 4*60),
     );
 
     let policy =

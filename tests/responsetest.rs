@@ -194,7 +194,7 @@ fn cache_with_expires() {
         &req(),
         &headers! {
             "date": date_str(now),
-            "expires": date_str(now + Duration::from_millis(2900)),
+            "expires": date_str(now + Duration::from_millis(2001)),
         },
     );
     assert!(!cache.is_stale(now));
@@ -211,7 +211,7 @@ fn cache_with_expires_relative_to_date() {
             "expires": date_str(now),
         },
     );
-    assert_eq!(0, cache.time_to_live(now).as_secs());
+    assert_eq!(30, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -224,10 +224,7 @@ fn cache_with_expires_always_relative_to_date() {
             "expires": date_str(now),
         },
         now,
-        CacheOptions {
-            trust_server_date: false,
-            ..Default::default()
-        },
+        Default::default(),
     );
     assert_eq!(3, cache.time_to_live(now).as_secs());
 }
