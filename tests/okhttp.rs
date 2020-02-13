@@ -298,14 +298,18 @@ fn test_request_max_age() {
 
     assert!(policy.age(now).as_secs() >= 60);
     assert!(!policy.is_stale(now));
-    assert!(policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
-        now
-    ));
-    assert!(!policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
+            now
+        )
+        .satisfies_without_revalidation());
+    assert!(!policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -322,15 +326,19 @@ fn test_request_min_fresh() {
 
     assert!(!policy.is_stale(now));
 
-    assert!(!policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -351,20 +359,26 @@ fn test_request_max_stale() {
 
     assert!(policy.is_stale(now));
 
-    assert!(policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(!policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -385,15 +399,19 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
 
     assert!(policy.is_stale(now));
 
-    assert!(!policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(!policy.satisfies_without_revalidation(
-        &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]

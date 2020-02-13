@@ -103,10 +103,7 @@ fn pre_check_tolerated() {
     assert!(cache.is_stale(now), "{:#?}", cache);
     assert!(!cache.is_storable());
     assert_eq!(cache.max_age().as_secs(), 0);
-    assert_eq!(
-        cache.cached_response(now).headers()["cache-control"],
-        cc
-    );
+    assert_eq!(cache.cached_response(now).headers()["cache-control"], cc);
 }
 
 #[test]
@@ -137,11 +134,7 @@ fn pre_check_poison() {
     assert!(cc.contains(", custom") || cc.contains("custom, "));
     assert!(cc.contains("foo=bar"));
 
-    assert!(cache
-        .cached_response(now)
-        .headers()
-        .get("pragma")
-        .is_none());
+    assert!(cache.cached_response(now).headers().get("pragma").is_none());
 }
 
 #[test]

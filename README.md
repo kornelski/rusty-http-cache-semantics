@@ -8,7 +8,7 @@ Cacheability of an HTTP response depends on how it was requested, so both `reque
 
 It may be surprising, but it's not enough for an HTTP response to be [fresh](#yo-fresh) to satisfy a request. It may need to match request headers specified in `Vary`. Even a matching fresh response may still not be usable if the new request restricted cacheability, etc.
 
-The key method is `satisfies_without_revalidation(new_request)`, which checks whether the `new_request` is compatible with the original request and whether all caching conditions are met.
+The key method is `before_request(new_request)`, which checks whether the `new_request` is compatible with the original request and whether all caching conditions are met.
 
 ### Options
 
@@ -26,7 +26,7 @@ If `options.trust_server_date` is false, then server's `Date` header won't be us
 
 Returns `true` if the response can be stored in a cache. If it's `false` then you MUST NOT store either the request or the response.
 
-### `satisfies_without_revalidation(new_request)`
+### `before_request(new_request)`
 
 This is the most important method. Use this method to check whether the cached response is still fresh in the context of the new request.
 
@@ -42,7 +42,7 @@ Returns updated, filtered set of response headers to return to clients receiving
 
 Returns approximate time until the response becomes stale (i.e. not fresh).
 
-After that time (when `time_to_live() <= 0`) the response might not be usable without revalidation. However, there are exceptions, e.g. a client can explicitly allow stale responses, so always check with `satisfies_without_revalidation()`.
+After that time (when `time_to_live() <= 0`) the response might not be usable without revalidation. However, there are exceptions, e.g. a client can explicitly allow stale responses, so always check with `before_request()`.
 
 ### Refreshing stale cache (revalidation)
 

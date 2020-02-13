@@ -298,12 +298,21 @@ impl CachePolicy {
     /// (e.g. it's for a different URL or method), or may require to be
     /// refreshed first. Either way, the new request's headers will have been
     /// updated for sending it to the origin server.
-    pub fn satisfies_without_revalidation<Req: RequestLike>(
-        &self,
-        req: &Req,
-        now: SystemTime,
-    ) -> bool {
+    pub fn before_request<Req: RequestLike>(&self, req: &Req, now: SystemTime) -> BeforeRequest {
         let req_headers = req.headers();
+
+        if self.request_matches(req, false) {
+            if self.satisfies_without_revalidation(&req_headers, now) {
+                BeforeRequest::Fresh(self.cached_response(now))
+            } else {
+                BeforeRequest::Stale(self.revalidation_request(req))
+            }
+        } else {
+            BeforeRequest::Stale(self.request_from_headers(req_headers.clone()))
+        }
+    }
+
+    fn satisfies_without_revalidation(&self, req_headers: &HeaderMap, now: SystemTime) -> bool {
         // When presented with a request, a cache MUST NOT reuse a stored response, unless:
         // the presented request does not contain the no-cache pragma (Section 5.4), nor the no-cache cache directive,
         // unless the stored response is successfully validated (Section 4.3), and
@@ -355,7 +364,7 @@ impl CachePolicy {
             }
         }
 
-        self.request_matches(req, false)
+        true
     }
 
     fn request_matches<Req: RequestLike>(&self, req: &Req, allow_head_method: bool) -> bool {
@@ -591,7 +600,7 @@ impl CachePolicy {
     /// After that time (when `time_to_live() <= 0`) the response might not be
     /// usable without revalidation. However, there are exceptions, e.g. a
     /// client can explicitly allow stale responses, so always check with
-    /// `satisfies_without_revalidation()`.
+    /// `before_request()`.
     pub fn time_to_live(&self, now: SystemTime) -> Duration {
         self.max_age()
             .checked_sub(self.age(now))
@@ -611,7 +620,10 @@ impl CachePolicy {
     ///
     /// It returns request "parts" without a body. You can upgrade it to a full
     /// response with `Request::from_parts(parts, BYOB)` (the body is usually `()`).
-    pub fn revalidation_request<Req: RequestLike>(&self, incoming_req: &Req) -> http::request::Parts {
+    pub fn revalidation_request<Req: RequestLike>(
+        &self,
+        incoming_req: &Req,
+    ) -> http::request::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(incoming_req.headers());
 
         // This implementation does not understand range requests
@@ -678,12 +690,12 @@ impl CachePolicy {
     ///
     /// Returns `{policy, modified}` where modified is a boolean indicating
     /// whether the response body has been modified, and old cached body can't be used.
-    pub fn revalidated_policy<Req: RequestLike, Res: ResponseLike>(
+    pub fn after_response<Req: RequestLike, Res: ResponseLike>(
         &self,
         request: &Req,
         response: &Res,
-        response_time: SystemTime
-    ) -> RevalidatedPolicy {
+        response_time: SystemTime,
+    ) -> AfterResponse {
         let response_headers = response.headers();
         let mut response_status = response.status();
 
@@ -723,7 +735,6 @@ impl CachePolicy {
             }
         }
 
-        let modified = response.status() != StatusCode::NOT_MODIFIED;
         let new_response_headers = if matches {
             let mut new_response_headers = HeaderMap::with_capacity(self.res.keys_len());
             // use other header fields provided in the 304 (Not Modified) response to replace all instances
@@ -749,27 +760,22 @@ impl CachePolicy {
         let mut new_options = self.opts;
         new_options.response_time = response_time;
 
-        RevalidatedPolicy {
-            policy: CachePolicy::new(request, &new_response, new_options),
-            // Client receiving 304 without body, even if it's invalid/mismatched has no option
-            // but to reuse a cached body. We don't have a good way to tell clients to do
-            // error recovery in such case.
-            modified,
-            matches,
+        let new_policy = CachePolicy::new(request, &new_response, new_options);
+
+        if matches && response.status() == StatusCode::NOT_MODIFIED {
+            AfterResponse::NotModified(new_policy, new_response)
+        } else {
+            AfterResponse::Modified(new_policy, new_response)
         }
     }
 }
 
 /// New policy and flags
-pub struct RevalidatedPolicy {
-    /// New policy with new headers
-    pub policy: CachePolicy,
-    /// Boolean indicating whether the response body has changed.
-    /// If `false`, then a valid 304 Not Modified response has been received, and you can reuse the old cached response body.
-    /// If `true`, you should use new response's body (if present), or make another request to the origin server without any conditional headers (i.e. don't use `revalidation_headers()` this time) to get the new resource.
-    pub modified: bool,
-    /// This was a request for something else and can't be used?
-    pub matches: bool,
+pub enum AfterResponse {
+    /// You can use the cached body! Make sure to use these updated headers
+    NotModified(CachePolicy, http::response::Parts),
+    /// You need to update the body in the cache
+    Modified(CachePolicy, http::response::Parts),
 }
 
 fn get_all_comma<'a>(
@@ -801,6 +807,25 @@ fn join<'a>(parts: impl Iterator<Item = &'a str>) -> String {
         out.push_str(part);
     }
     out
+}
+
+/// Next action suggested after `before_request()`
+pub enum BeforeRequest {
+    /// Good news! You can use it with body from the cache. No need to contact the server.
+    Fresh(http::response::Parts),
+    /// You must send the request to the server first.
+    Stale(http::request::Parts),
+}
+
+impl BeforeRequest {
+    /// For backwards compatibility only.
+    /// Don't forget to use request headers from `BeforeRequest::Fresh`
+    pub fn satisfies_without_revalidation(&self) -> bool {
+        match self {
+            Self::Fresh(_) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Allows using either Request or request::Parts, or your own newtype.

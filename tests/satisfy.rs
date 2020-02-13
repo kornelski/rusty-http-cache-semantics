@@ -28,9 +28,9 @@ fn test_when_urls_match() {
         Default::default(),
     );
 
-    assert!(
-        policy.satisfies_without_revalidation(&mut request_parts(Request::builder().uri("/")), now)
-    );
+    assert!(policy
+        .before_request(&mut request_parts(Request::builder().uri("/")), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -52,7 +52,9 @@ fn test_when_expires_is_present() {
         Default::default(),
     );
 
-    assert!(policy.satisfies_without_revalidation(&mut request_parts(Request::builder()), now));
+    assert!(policy
+        .before_request(&mut request_parts(Request::builder()), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -69,10 +71,9 @@ fn test_when_methods_match() {
         Default::default(),
     );
 
-    assert!(policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().method(Method::GET)),
-        now
-    ));
+    assert!(policy
+        .before_request(&request_parts(Request::builder().method(Method::GET)), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -89,15 +90,19 @@ fn test_not_when_hosts_mismatch() {
         Default::default(),
     );
 
-    assert!(policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().header(header::HOST, "foo")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &request_parts(Request::builder().header(header::HOST, "foo")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(!policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().header(header::HOST, "foofoo")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &request_parts(Request::builder().header(header::HOST, "foofoo")),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -114,10 +119,9 @@ fn test_when_methods_match_head() {
         Default::default(),
     );
 
-    assert!(policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().method(Method::HEAD)),
-        now
-    ));
+    assert!(policy
+        .before_request(&request_parts(Request::builder().method(Method::HEAD)), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -134,7 +138,9 @@ fn test_not_when_proxy_revalidating() {
         Default::default(),
     );
 
-    assert!(!policy.satisfies_without_revalidation(&mut request_parts(Request::builder()), now));
+    assert!(!policy
+        .before_request(&mut request_parts(Request::builder()), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -154,7 +160,9 @@ fn test_when_not_a_proxy_revalidating() {
         },
     );
 
-    assert!(policy.satisfies_without_revalidation(&mut request_parts(Request::builder()), now));
+    assert!(policy
+        .before_request(&mut request_parts(Request::builder()), now)
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -167,18 +175,24 @@ fn test_not_when_no_cache_requesting() {
         Default::default(),
     );
 
-    assert!(policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().header(header::CACHE_CONTROL, "fine")),
-        now
-    ));
+    assert!(policy
+        .before_request(
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "fine")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(!policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().header(header::CACHE_CONTROL, "no-cache")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "no-cache")),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert!(!policy.satisfies_without_revalidation(
-        &request_parts(Request::builder().header(header::PRAGMA, "no-cache")),
-        now
-    ));
+    assert!(!policy
+        .before_request(
+            &request_parts(Request::builder().header(header::PRAGMA, "no-cache")),
+            now
+        )
+        .satisfies_without_revalidation());
 }

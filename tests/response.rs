@@ -115,8 +115,7 @@ fn test_pre_check_poison() {
     assert!(policy.is_storable());
     assert_eq!(policy.max_age().as_secs(), 100);
 
-    let cache_control_header =
-        &policy.cached_response(now).headers[header::CACHE_CONTROL.as_str()];
+    let cache_control_header = &policy.cached_response(now).headers[header::CACHE_CONTROL.as_str()];
     assert!(!cache_control_header.to_str().unwrap().contains("pre-check"));
     assert!(!cache_control_header
         .to_str()

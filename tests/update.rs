@@ -1,6 +1,7 @@
 use http::header::HeaderName;
 use http::request::Parts as RequestParts;
 use http::{header, HeaderMap, Request, Response};
+use http_cache_semantics::AfterResponse;
 use http_cache_semantics::CachePolicy;
 use std::time::SystemTime;
 
@@ -70,17 +71,16 @@ fn not_modified_response_headers_for_update(
         .revalidation_request(&request_parts(second_request_builder))
         .headers;
 
-    let rev = policy.revalidated_policy(
+    let rev = policy.after_response(
         &request_parts_from_headers(headers),
         &response_parts(second_response_builder),
         now,
     );
 
-    if rev.modified {
-        return None;
+    match rev {
+        AfterResponse::Modified(..) => None,
+        AfterResponse::NotModified(_, res) => Some(res.headers),
     }
-
-    Some(rev.policy.cached_response(now).headers)
 }
 
 fn assert_updates(
