@@ -138,7 +138,7 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
         options,
     );
 
-    assert!(policy.max_age().as_secs() >= 10 * 3600 * 24);
+    assert!((policy.time_to_live(now) + policy.age(now)).as_secs() >= 10 * 3600 * 24);
     assert!(policy.time_to_live(now).as_millis() + 1000 >= 5 * 3600 * 24);
 }
 
@@ -182,7 +182,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
         options,
     );
 
-    assert_eq!(policy.max_age().as_secs(), 180);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 180);
 }
 
 #[test]

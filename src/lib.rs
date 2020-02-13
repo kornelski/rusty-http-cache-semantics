@@ -530,7 +530,9 @@ impl CachePolicy {
         self.response_time
     }
 
-    /// Value of the Age header, in seconds, updated for the current time.
+    /// Tells how long the response has been sitting in cache(s).
+    ///
+    /// Value of the `Age` header, updated for the current time.
     pub fn age(&self, now: SystemTime) -> Duration {
         let mut age = self.age_header();
         if let Ok(since_date) = self.response_time.duration_since(self.date()) {
@@ -552,10 +554,12 @@ impl CachePolicy {
         )
     }
 
-    /// Value of applicable max-age (or heuristic equivalent) in seconds. This counts since response's `Date`.
+    /// Value of applicable max-age (or heuristic equivalent) in seconds.
+    ///
+    /// This counts since response's `Date` - `Age`.
     ///
     /// For an up-to-date value, see `time_to_live()`.
-    pub fn max_age(&self) -> Duration {
+    fn max_age(&self) -> Duration {
         if !self.is_storable() || self.res_cc.contains_key("no-cache") {
             return Duration::from_secs(0);
         }
@@ -863,7 +867,7 @@ impl BeforeRequest {
     }
 }
 
-/// Allows using either Request or request::Parts, or your own newtype.
+/// Allows using either `Request` or `request::Parts`, or your own newtype.
 pub trait RequestLike {
     /// Same as `req.uri().clone()`
     fn uri(&self) -> Uri;
@@ -877,7 +881,7 @@ pub trait RequestLike {
     fn headers(&self) -> &HeaderMap;
 }
 
-/// Allows using either Response or response::Parts, or your own newtype.
+/// Allows using either `Response` or `response::Parts`, or your own newtype.
 pub trait ResponseLike {
     /// Same as `res.status()`
     fn status(&self) -> StatusCode;

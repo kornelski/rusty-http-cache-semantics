@@ -34,7 +34,7 @@ fn test_simple_hit() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 999999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 999999);
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn test_quoted_syntax() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 678);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 678);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_iis() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 259200);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 259200);
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_pre_check_tolerated() {
 
     assert!(policy.is_stale(now));
     assert!(!policy.is_storable());
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
     assert_eq!(
         get_cached_response(
             &policy,
@@ -116,7 +116,7 @@ fn test_pre_check_poison() {
 
     assert!(!policy.is_stale(now));
     assert!(policy.is_storable());
-    assert_eq!(policy.max_age().as_secs(), 100);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 100);
 
     let res = get_cached_response(&policy, &request_parts(Request::builder()), now);
     let cache_control_header = &res.headers[header::CACHE_CONTROL.as_str()];
@@ -198,7 +198,7 @@ fn test_cache_old_files() {
     );
 
     assert!(!policy.is_stale(now));
-    assert!(policy.max_age().as_secs() > 100);
+    assert!((policy.time_to_live(now) + policy.age(now)).as_secs() > 100);
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn test_immutable_simple_hit() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 999999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 999999);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn test_immutable_can_expire() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -241,7 +241,7 @@ fn test_cache_immutable_files() {
     );
 
     assert!(!policy.is_stale(now));
-    assert!(policy.max_age().as_secs() > 100);
+    assert!((policy.time_to_live(now) + policy.age(now)).as_secs() > 100);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn test_immutable_can_be_off() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -308,7 +308,7 @@ fn test_no_store() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -333,9 +333,9 @@ fn test_observe_private_cache() {
     );
 
     assert!(shared_policy.is_stale(now));
-    assert_eq!(shared_policy.max_age().as_secs(), 0);
+    assert_eq!((shared_policy.time_to_live(now) + shared_policy.age(now)).as_secs(), 0);
     assert!(!unshared_policy.is_stale(now));
-    assert_eq!(unshared_policy.max_age().as_secs(), 1234);
+    assert_eq!((unshared_policy.time_to_live(now) + unshared_policy.age(now)).as_secs(), 1234);
 }
 
 #[test]
@@ -361,9 +361,9 @@ fn test_do_not_share_cookies() {
     );
 
     assert!(shared_policy.is_stale(now));
-    assert_eq!(shared_policy.max_age().as_secs(), 0);
+    assert_eq!((shared_policy.time_to_live(now) + shared_policy.age(now)).as_secs(), 0);
     assert!(!unshared_policy.is_stale(now));
-    assert_eq!(unshared_policy.max_age().as_secs(), 99);
+    assert_eq!((unshared_policy.time_to_live(now) + unshared_policy.age(now)).as_secs(), 99);
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn test_do_share_cookies_if_immutable() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 99);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 99);
 }
 
 #[test]
@@ -395,7 +395,7 @@ fn test_cache_explicitly_public_cookie() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 5);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 5);
 }
 
 #[test]
@@ -407,7 +407,7 @@ fn test_miss_max_age_equals_zero() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -423,7 +423,7 @@ fn test_uncacheable_503() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -454,7 +454,7 @@ fn test_uncacheable_303() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -485,7 +485,7 @@ fn test_uncacheable_412() {
     );
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -501,7 +501,7 @@ fn test_expired_expires_cache_with_max_age() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 9999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 9999);
 }
 
 #[test]
@@ -527,9 +527,9 @@ fn test_expired_expires_cached_with_s_maxage() {
     );
 
     assert!(!shared_policy.is_stale(now));
-    assert_eq!(shared_policy.max_age().as_secs(), 9999);
+    assert_eq!((shared_policy.time_to_live(now) + shared_policy.age(now)).as_secs(), 9999);
     assert!(unshared_policy.is_stale(now));
-    assert_eq!(unshared_policy.max_age().as_secs(), 0);
+    assert_eq!((unshared_policy.time_to_live(now) + unshared_policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -551,7 +551,7 @@ fn test_max_age_wins_over_future_expires() {
     );
 
     assert!(!policy.is_stale(now));
-    assert_eq!(policy.max_age().as_secs(), 333);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 333);
 }
 
 fn get_cached_response(

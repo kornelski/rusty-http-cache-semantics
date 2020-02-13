@@ -174,7 +174,7 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
             ..Default::default()
         },
     );
-    assert!(policy.max_age().as_secs() >= 10 * 3600 * 24);
+    assert!((policy.time_to_live(now) + policy.age(now)).as_secs() >= 10 * 3600 * 24);
     assert!(policy.time_to_live(now).as_secs() >= 5 * 3600 * 24 - 1);
 }
 
@@ -217,7 +217,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
             ..Default::default()
         },
     );
-    assert_eq!(policy.max_age().as_secs(), 180);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 180);
 }
 
 #[test]
@@ -753,7 +753,7 @@ fn test_simple_hit() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.max_age().as_secs(), 999999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 999999);
 }
 
 #[test]
@@ -771,7 +771,7 @@ fn test_weird_syntax() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.max_age().as_secs(), 456);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 456);
 
     #[cfg(feature = "with_serde")]
     {
@@ -779,7 +779,7 @@ fn test_weird_syntax() {
         let policy: CachePolicy = serde_json::from_str(&json).unwrap();
 
         assert_eq!(policy.is_stale(now), false);
-        assert_eq!(policy.max_age().as_secs(), 456);
+        assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 456);
     }
 }
 
@@ -798,7 +798,7 @@ fn test_quoted_syntax() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.max_age().as_secs(), 678);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 678);
 }
 
 #[test]
@@ -877,7 +877,7 @@ fn test_immutable_simple_hit() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.max_age().as_secs(), 999999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 999999);
 }
 
 #[test]
@@ -896,7 +896,7 @@ fn test_immutable_can_expire() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -934,7 +934,7 @@ fn test_no_store() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -953,7 +953,7 @@ fn test_observe_private_cache() {
     );
 
     assert_eq!(proxy_policy.is_stale(now), true);
-    assert_eq!(proxy_policy.max_age().as_secs(), 0);
+    assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 0);
 
     let ua_cache = CachePolicy::new_options(
         &req(json!({
@@ -968,7 +968,7 @@ fn test_observe_private_cache() {
         },
     );
     assert_eq!(ua_cache.is_stale(now), false);
-    assert_eq!(ua_cache.max_age().as_secs(), 1234);
+    assert_eq!(ua_cache.time_to_live(now).as_secs(), 1234);
 }
 
 #[test]
@@ -993,7 +993,7 @@ fn test_do_not_share_cookies() {
     );
 
     assert_eq!(proxy_policy.is_stale(now), true);
-    assert_eq!(proxy_policy.max_age().as_secs(), 0);
+    assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 0);
 
     let ua_cache = CachePolicy::new_options(
         &req(json!({
@@ -1008,7 +1008,7 @@ fn test_do_not_share_cookies() {
         },
     );
     assert_eq!(ua_cache.is_stale(now), false);
-    assert_eq!(ua_cache.max_age().as_secs(), 99);
+    assert_eq!(ua_cache.time_to_live(now).as_secs(), 99);
 }
 
 #[test]
@@ -1033,7 +1033,7 @@ fn test_do_share_cookies_if_immutable() {
     );
 
     assert_eq!(proxy_policy.is_stale(now), false);
-    assert_eq!(proxy_policy.max_age().as_secs(), 99);
+    assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 99);
 }
 
 #[test]
@@ -1058,7 +1058,7 @@ fn test_cache_explicitly_public_cookie() {
     );
 
     assert_eq!(proxy_policy.is_stale(now), false);
-    assert_eq!(proxy_policy.max_age().as_secs(), 5);
+    assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 5);
 }
 
 #[test]
@@ -1077,7 +1077,7 @@ fn test_miss_max_age_equals_zero() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -1097,7 +1097,7 @@ fn test_uncacheable_503() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -1136,7 +1136,7 @@ fn test_uncacheable_303() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -1175,7 +1175,7 @@ fn test_uncacheable_412() {
     );
 
     assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.max_age().as_secs(), 0);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
 #[test]
@@ -1195,7 +1195,7 @@ fn test_expired_expires_cache_with_max_age() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.max_age().as_secs(), 9999);
+    assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 9999);
 }
 
 #[test]
@@ -1217,7 +1217,7 @@ fn test_expired_expires_cached_with_s_maxage() {
     );
 
     assert_eq!(proxy_policy.is_stale(now), false);
-    assert_eq!(proxy_policy.max_age().as_secs(), 9999);
+    assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 9999);
 
     let ua_policy = CachePolicy::new_options(
         &req(json!({
@@ -1234,7 +1234,7 @@ fn test_expired_expires_cached_with_s_maxage() {
         },
     );
     assert_eq!(ua_policy.is_stale(now), true);
-    assert_eq!(ua_policy.max_age().as_secs(), 0);
+    assert_eq!((ua_policy.time_to_live(now) + ua_policy.age(now)).as_secs(), 0);
 }
 
 #[test]

@@ -35,7 +35,7 @@ fn simple_hit() {
         &headers! { "cache-control": "public, max-age=999999" },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 999999);
+    assert_eq!(cache.time_to_live(now).as_secs(), 999999);
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn weird_syntax() {
         &headers! { "cache-control": ",,,,max-age =  456      ," },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 456);
+    assert_eq!(cache.time_to_live(now).as_secs(), 456);
 
     // let cache2 = CachePolicy.fromObject(
     //     JSON.parse(JSON.stringify(cache.toObject()))
@@ -64,7 +64,7 @@ fn quoted_syntax() {
         &headers! { "cache-control": "  max-age = \"678\"      " },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 678);
+    assert_eq!(cache.time_to_live(now).as_secs(), 678);
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn iis() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 259200);
+    assert_eq!(cache.time_to_live(now).as_secs(), 259200);
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn pre_check_tolerated() {
     );
     assert!(cache.is_stale(now), "{:#?}", cache);
     assert!(!cache.is_storable());
-    assert_eq!(cache.max_age().as_secs(), 0);
+    assert_eq!(cache.time_to_live(now).as_secs(), 0);
     assert_eq!(
         get_cached_response(
             &cache,
@@ -130,7 +130,7 @@ fn pre_check_poison() {
     );
     assert!(!cache.is_stale(now));
     assert!(cache.is_storable());
-    assert_eq!(cache.max_age().as_secs(), 100);
+    assert_eq!(cache.time_to_live(now).as_secs(), 100);
 
     let cc = get_cached_response(&cache, &req(), now);
     let cc = cc.headers();
@@ -172,7 +172,7 @@ fn pre_check_poison_undefined_header() {
     );
     assert!(cache.is_stale(now));
     assert!(cache.is_storable());
-    assert_eq!(cache.max_age().as_secs(), 0);
+    assert_eq!(cache.time_to_live(now).as_secs(), 0);
 
     let res = &get_cached_response(
         &cache,
@@ -194,11 +194,11 @@ fn cache_with_expires() {
         &req(),
         &headers! {
             "date": date_str(now),
-            "expires": date_str(now + Duration::from_secs(2)),
+            "expires": date_str(now + Duration::from_millis(2900)),
         },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(2, cache.max_age().as_secs());
+    assert_eq!(2, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -207,11 +207,11 @@ fn cache_with_expires_relative_to_date() {
     let cache = CachePolicy::new(
         &req(),
         &headers! {
-            "date": date_str(now - Duration::from_secs(3)),
+            "date": date_str(now - Duration::from_secs(30)),
             "expires": date_str(now),
         },
     );
-    assert_eq!(3, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn cache_with_expires_always_relative_to_date() {
             ..Default::default()
         },
     );
-    assert_eq!(3, cache.max_age().as_secs());
+    assert_eq!(3, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -243,8 +243,8 @@ fn cache_expires_no_date() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert!(cache.max_age().as_secs() > 3595);
-    assert!(cache.max_age().as_secs() < 3605);
+    assert!(cache.time_to_live(now).as_secs() > 3595);
+    assert!(cache.time_to_live(now).as_secs() < 3605);
 }
 
 #[test]
@@ -322,7 +322,7 @@ fn cache_old_files() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert!(cache.max_age().as_secs() > 100);
+    assert!(cache.time_to_live(now).as_secs() > 100);
 }
 
 #[test]
@@ -333,7 +333,7 @@ fn immutable_simple_hit() {
         &headers! { "cache-control": "immutable, max-age=999999" },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 999999);
+    assert_eq!(cache.time_to_live(now).as_secs(), 999999);
 }
 
 #[test]
@@ -346,7 +346,7 @@ fn immutable_can_expire() {
         },
     );
     assert!(cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 0);
+    assert_eq!(cache.time_to_live(now).as_secs(), 0);
 }
 
 #[test]
@@ -361,7 +361,7 @@ fn cache_immutable_files() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert!(cache.max_age().as_secs() > 100);
+    assert!(cache.time_to_live(now).as_secs() > 100);
 }
 
 #[test]
@@ -381,7 +381,7 @@ fn immutable_can_be_off() {
         },
     );
     assert!(cache.is_stale(now));
-    assert_eq!(cache.max_age().as_secs(), 0);
+    assert_eq!(cache.time_to_live(now).as_secs(), 0);
 }
 
 #[test]
@@ -418,7 +418,7 @@ fn no_store() {
         &headers! { "cache-control": "no-store, public, max-age=1", },
     );
     assert!(cache.is_stale(now));
-    assert_eq!(0, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -431,7 +431,7 @@ fn observe_private_cache() {
         },
     );
     assert!(proxy_cache.is_stale(now));
-    assert_eq!(0, proxy_cache.max_age().as_secs());
+    assert_eq!(0, proxy_cache.time_to_live(now).as_secs());
 
     let ua_cache = CachePolicy::new_options(
         &req(),
@@ -445,7 +445,7 @@ fn observe_private_cache() {
         },
     );
     assert!(!ua_cache.is_stale(now));
-    assert_eq!(1234, ua_cache.max_age().as_secs());
+    assert_eq!(1234, ua_cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -464,7 +464,7 @@ fn don_t_share_cookies() {
         },
     );
     assert!(proxy_cache.is_stale(now));
-    assert_eq!(0, proxy_cache.max_age().as_secs());
+    assert_eq!(0, proxy_cache.time_to_live(now).as_secs());
 
     let ua_cache = CachePolicy::new_options(
         &req(),
@@ -479,7 +479,7 @@ fn don_t_share_cookies() {
         },
     );
     assert!(!ua_cache.is_stale(now));
-    assert_eq!(99, ua_cache.max_age().as_secs());
+    assert_eq!(99, ua_cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -498,7 +498,7 @@ fn do_share_cookies_if_immutable() {
         },
     );
     assert!(!proxy_cache.is_stale(now));
-    assert_eq!(99, proxy_cache.max_age().as_secs());
+    assert_eq!(99, proxy_cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -517,7 +517,7 @@ fn cache_explicitly_public_cookie() {
         },
     );
     assert!(!proxy_cache.is_stale(now));
-    assert_eq!(5, proxy_cache.max_age().as_secs());
+    assert_eq!(5, proxy_cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -528,7 +528,7 @@ fn miss_max_age_0() {
         &headers! { "cache-control": "public, max-age=0",       },
     );
     assert!(cache.is_stale(now));
-    assert_eq!(0, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -538,7 +538,7 @@ fn uncacheable_503() {
     *res.status_mut() = StatusCode::from_u16(503).unwrap();
     let cache = CachePolicy::new(&req(), &res);
     assert!(cache.is_stale(now));
-    assert_eq!(0, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -557,7 +557,7 @@ fn uncacheable_303() {
     *res.status_mut() = StatusCode::from_u16(303).unwrap();
     let cache = CachePolicy::new(&req(), &res);
     assert!(cache.is_stale(now));
-    assert_eq!(0, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -576,7 +576,7 @@ fn uncacheable_412() {
     *res.status_mut() = StatusCode::from_u16(412).unwrap();
     let cache = CachePolicy::new(&req(), &res);
     assert!(cache.is_stale(now));
-    assert_eq!(0, cache.max_age().as_secs());
+    assert_eq!(0, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -590,7 +590,7 @@ fn expired_expires_cached_with_max_age() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(9999, cache.max_age().as_secs());
+    assert_eq!(9999, cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -604,7 +604,7 @@ fn expired_expires_cached_with_s_maxage() {
         },
     );
     assert!(!proxy_cache.is_stale(now));
-    assert_eq!(9999, proxy_cache.max_age().as_secs());
+    assert_eq!(9999, proxy_cache.time_to_live(now).as_secs());
 
     let ua_cache = CachePolicy::new_options(
         &req(),
@@ -619,7 +619,7 @@ fn expired_expires_cached_with_s_maxage() {
         },
     );
     assert!(ua_cache.is_stale(now));
-    assert_eq!(0, ua_cache.max_age().as_secs());
+    assert_eq!(0, ua_cache.time_to_live(now).as_secs());
 }
 
 #[test]
@@ -633,7 +633,7 @@ fn max_age_wins_over_future_expires() {
         },
     );
     assert!(!cache.is_stale(now));
-    assert_eq!(333, cache.max_age().as_secs());
+    assert_eq!(333, cache.time_to_live(now).as_secs());
 }
 
 #[test]
