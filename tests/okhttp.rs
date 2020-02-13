@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use http::{header, HeaderValue, Request, Response};
 use http_cache_semantics::CachePolicy;
-use http_cache_semantics::CachePolicyOptions;
+use http_cache_semantics::CacheOptions;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -13,7 +13,7 @@ fn response_parts(builder: http::response::Builder) -> http::response::Parts {
 }
 
 fn assert_cached(should_put: bool, response_code: u16) {
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -99,7 +99,7 @@ fn test_ok_http_response_caching_by_response_code() {
 #[test]
 fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -120,7 +120,7 @@ fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
 #[test]
 fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -142,7 +142,7 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
 #[test]
 fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -162,7 +162,7 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
 
 #[test]
 fn test_max_age_preferred_over_lower_shared_max_age() {
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -183,7 +183,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
 #[test]
 fn test_max_age_preferred_over_higher_max_age() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -201,7 +201,7 @@ fn test_max_age_preferred_over_higher_max_age() {
 
 fn request_method_not_cached(method: &str) {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -241,7 +241,7 @@ fn test_request_method_trace_is_not_cached() {
 #[test]
 fn test_etag_and_expiration_date_in_the_future() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -262,7 +262,7 @@ fn test_etag_and_expiration_date_in_the_future() {
 
 #[test]
 fn test_client_side_no_store() {
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -290,7 +290,7 @@ fn test_request_max_age() {
     let policy = CachePolicy::new(
         &first_request,
         &response,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -315,7 +315,7 @@ fn test_request_max_age() {
 #[test]
 fn test_request_min_fresh() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -344,7 +344,7 @@ fn test_request_min_fresh() {
 #[test]
 fn test_request_max_stale() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };
@@ -384,7 +384,7 @@ fn test_request_max_stale() {
 #[test]
 fn test_request_max_stale_not_honored_with_must_revalidate() {
     let now = SystemTime::now();
-    let options = CachePolicyOptions {
+    let options = CacheOptions {
         shared: false,
         ..Default::default()
     };

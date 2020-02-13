@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CachePolicy;
-use http_cache_semantics::CachePolicyOptions;
+use http_cache_semantics::CacheOptions;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -62,7 +62,7 @@ fn test_iis() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "private, public, max-age=259200"),
         ),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -110,7 +110,7 @@ fn test_pre_check_poison() {
                 .header(header::CACHE_CONTROL, original_cache_control)
                 .header(header::PRAGMA, "no-cache"),
         ),
-        CachePolicyOptions {
+        CacheOptions {
             ignore_cargo_cult: true,
             ..Default::default()
         },
@@ -264,7 +264,7 @@ fn test_immutable_can_be_off() {
                 .header(header::CACHE_CONTROL, "immutable")
                 .header(header::LAST_MODIFIED, Utc::now().to_rfc2822()),
         ),
-        CachePolicyOptions {
+        CacheOptions {
             immutable_min_time_to_live: std::time::Duration::from_secs(0),
             ..Default::default()
         },
@@ -336,7 +336,7 @@ fn test_observe_private_cache() {
     let unshared_policy = CachePolicy::new(
         &request,
         &response,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -363,7 +363,7 @@ fn test_do_not_share_cookies() {
     let unshared_policy = CachePolicy::new(
         &request,
         &response,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -537,7 +537,7 @@ fn test_expired_expires_cached_with_s_maxage() {
     let unshared_policy = CachePolicy::new(
         &request,
         &response,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },

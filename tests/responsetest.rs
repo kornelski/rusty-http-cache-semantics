@@ -80,7 +80,7 @@ fn iis() {
         }
         .into_parts()
         .0,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -125,7 +125,7 @@ fn pre_check_poison() {
     let cache = CachePolicy::new(
         &req(),
         res,
-        CachePolicyOptions {
+        CacheOptions {
             ignore_cargo_cult: true,
             ..Default::default()
         },
@@ -166,7 +166,7 @@ fn pre_check_poison_undefined_header() {
     let cache = CachePolicy::new(
         &req(),
         res,
-        CachePolicyOptions {
+        CacheOptions {
             ignore_cargo_cult: true,
             ..Default::default()
         },
@@ -226,7 +226,7 @@ fn cache_with_expires_always_relative_to_date() {
             "date": date_str(now - Duration::from_secs(3)),
             "expires": date_str(now),
         },
-        CachePolicyOptions {
+        CacheOptions {
             trust_server_date: false,
             ..Default::default()
         },
@@ -385,7 +385,7 @@ fn immutable_can_be_off() {
             "cache-control": "immutable",
             "last-modified": date_str(now),
         },
-        CachePolicyOptions {
+        CacheOptions {
             immutable_min_time_to_live: Duration::from_secs(0),
             ..Default::default()
         },
@@ -410,7 +410,7 @@ fn pragma_no_cache() {
 
 #[test]
 fn blank_cache_control_and_pragma_no_cache() {
-    let opts = CachePolicyOptions::default();
+    let opts = CacheOptions::default();
     let cache = CachePolicy::new(
         &req(),
         &headers! {
@@ -453,7 +453,7 @@ fn observe_private_cache() {
         &headers! {
             "cache-control": "private, max-age=1234",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -471,7 +471,7 @@ fn don_t_share_cookies() {
             "set-cookie": "foo=bar",
             "cache-control": "max-age=99",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -485,7 +485,7 @@ fn don_t_share_cookies() {
             "set-cookie": "foo=bar",
             "cache-control": "max-age=99",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -503,7 +503,7 @@ fn do_share_cookies_if_immutable() {
             "set-cookie": "foo=bar",
             "cache-control": "immutable, max-age=99",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -521,7 +521,7 @@ fn cache_explicitly_public_cookie() {
             "set-cookie": "foo=bar",
             "cache-control": "max-age=5, public",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -625,7 +625,7 @@ fn expired_expires_cached_with_s_maxage() {
             "cache-control": "public, s-maxage=9999",
             "expires": "Sat, 07 May 2016 15:35:18 GMT",
         },
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },

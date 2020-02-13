@@ -1,6 +1,6 @@
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CachePolicy;
-use http_cache_semantics::CachePolicyOptions;
+use http_cache_semantics::CacheOptions;
 use std::time::SystemTime;
 
 fn public_cacheable_response() -> http::response::Parts {
@@ -89,7 +89,7 @@ fn test_private_auth_is_ok() {
                 .header(header::AUTHORIZATION, "test"),
         ),
         &cacheable_response(),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },

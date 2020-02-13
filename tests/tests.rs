@@ -66,7 +66,7 @@ fn assert_cached(should_put: bool, response_code: i32) {
     let policy = CachePolicy::new(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(response),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -145,7 +145,7 @@ fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
             },
             "body": "A"
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -165,7 +165,7 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
             },
             "body": "A"
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -187,7 +187,7 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
                 "cache-control": "max-age=60",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -205,7 +205,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
                 "cache-control": "s-maxage=60, max-age=180",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -224,7 +224,7 @@ fn test_max_age_preferred_over_higher_max_age() {
                 "cache-control": "s-maxage=60, max-age=180",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -246,7 +246,7 @@ fn request_method_not_cached(method: String) {
                 "expires": format_date(1, 3600),
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -286,7 +286,7 @@ fn test_etag_and_expiration_date_in_the_future() {
                 "expires": format_date(1, 3600),
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -307,7 +307,7 @@ fn test_client_side_no_store() {
                 "cache-control": "max-age=60",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -327,7 +327,7 @@ fn test_request_max_age() {
                 "expires": format_date(1, 3600),
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -374,7 +374,7 @@ fn test_request_min_fresh() {
                 "cache-control": "max-age=60",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -421,7 +421,7 @@ fn test_request_max_stale() {
                 "date": format_date(-4, 60),
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -479,7 +479,7 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
                 "date": format_date(-4, 60),
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -664,7 +664,7 @@ fn test_private_auth_is_ok() {
                 "cache-control": "max-age=111",
             }
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -964,7 +964,7 @@ fn test_observe_private_cache() {
             "headers": {},
         })),
         &res(json!({ "headers": private_header })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -987,7 +987,7 @@ fn test_do_not_share_cookies() {
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -1002,7 +1002,7 @@ fn test_do_not_share_cookies() {
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -1025,7 +1025,7 @@ fn test_do_share_cookies_if_immutable() {
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -1049,7 +1049,7 @@ fn test_cache_explicitly_public_cookie() {
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: true,
             ..Default::default()
         },
@@ -1233,7 +1233,7 @@ fn test_expired_expires_cached_with_s_maxage() {
         &res(json!({
             "headers": s_max_age_headers,
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -1503,7 +1503,7 @@ fn test_when_not_a_proxy_revalidating() {
                 "cache-control": "max-age=2, proxy-revalidate ",
             },
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },
@@ -1533,7 +1533,7 @@ fn test_not_when_no_cache_requesting() {
                 "cache-control": "max-age=2",
             },
         })),
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },

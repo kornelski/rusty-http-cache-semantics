@@ -2,7 +2,7 @@ use chrono::offset::Utc;
 use chrono::Duration;
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CachePolicy;
-use http_cache_semantics::CachePolicyOptions;
+use http_cache_semantics::CacheOptions;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -216,7 +216,7 @@ fn test_when_not_a_proxy_revalidating() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder()),
         response,
-        CachePolicyOptions {
+        CacheOptions {
             shared: false,
             ..Default::default()
         },

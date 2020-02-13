@@ -106,17 +106,18 @@ fn format_cache_control(cc: &CacheControl) -> String {
     out
 }
 
-/// Holds configuration options which control the behavior of the cache and
-/// are independent of any specific request or response.
+/// Configuration options which control behavior of the `CachePolicy`.
+///
+/// You can use `Default::default()` for the options.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "with_serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
-pub struct CachePolicyOptions {
-    /// If `shared` is `true` (default), then the response is evaluated from a
+pub struct CacheOptions {
+    /// If `true` (default), then the response is evaluated from a
     /// perspective of a shared cache (i.e. `private` is not cacheable and
     /// `s-maxage` is respected). If `shared` is `false`, then the response is
     /// evaluated from a perspective of a single-user cache (i.e. `private` is
-    /// cacheable and `s-maxage` is ignored). `shared: true` is recommended
-    /// for HTTP clients.
+    /// cacheable and `s-maxage` is ignored). `shared: true` is required
+    /// for proxies and multi-user caches.
     pub shared: bool,
     /// `cache_heuristic` is a fraction of response's age that is used as a
     /// fallback cache duration. The default is 0.1 (10%), e.g. if a file
@@ -143,7 +144,7 @@ pub struct CachePolicyOptions {
     pub response_time: SystemTime,
 }
 
-impl Default for CachePolicyOptions {
+impl Default for CacheOptions {
     fn default() -> Self {
         Self {
             shared: true,
@@ -173,7 +174,7 @@ pub struct CachePolicy {
     status: StatusCode,
     #[cfg_attr(feature = "with_serde", serde(with = "http_serde::method"))]
     method: Method,
-    opts: CachePolicyOptions,
+    opts: CacheOptions,
     res_cc: CacheControl,
     req_cc: CacheControl,
 }
@@ -185,7 +186,7 @@ impl CachePolicy {
     pub fn new<Req: RequestLike, Res: ResponseLike>(
         req: &Req,
         res: &Res,
-        opts: CachePolicyOptions,
+        opts: CacheOptions,
     ) -> Self {
         let uri = req.uri();
         let status = res.status();
@@ -201,7 +202,7 @@ impl CachePolicy {
         status: StatusCode,
         req: HeaderMap,
         mut res: HeaderMap,
-        opts: CachePolicyOptions,
+        opts: CacheOptions,
     ) -> Self {
         let mut res_cc = parse_cache_control(res.get_all("cache-control"));
         let req_cc = parse_cache_control(req.get_all("cache-control"));
