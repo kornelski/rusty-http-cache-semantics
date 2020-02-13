@@ -106,9 +106,7 @@ fn format_cache_control(cc: &CacheControl) -> String {
     out
 }
 
-/// Configuration options which control behavior of the `CachePolicy`.
-///
-/// You can use `Default::default()` for the options.
+/// Configuration options which control behavior of the cache. Use with `CachePolicy::new_options()`.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "with_serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
 pub struct CacheOptions {
@@ -140,8 +138,6 @@ pub struct CacheOptions {
     /// useful if you want to cache responses with very short `max-age`, but
     /// your local clock is not exactly in sync with the server's.
     pub trust_server_date: bool,
-    /// When the response has been received. `SystemTime::now`.
-    pub response_time: SystemTime,
 }
 
 impl Default for CacheOptions {
@@ -152,7 +148,6 @@ impl Default for CacheOptions {
             immutable_min_time_to_live: Duration::from_secs(24 * 3600),
             ignore_cargo_cult: false,
             trust_server_date: true,
-            response_time: SystemTime::now(),
         }
     }
 }
@@ -177,15 +172,38 @@ pub struct CachePolicy {
     opts: CacheOptions,
     res_cc: CacheControl,
     req_cc: CacheControl,
+    response_time: SystemTime,
 }
 
 impl CachePolicy {
     /// Cacheability of an HTTP response depends on how it was requested, so
     /// both request and response are required to create the policy.
     #[inline]
-    pub fn new<Req: RequestLike, Res: ResponseLike>(
+    pub fn new<Req: RequestLike, Res: ResponseLike>(req: &Req, res: &Res) -> Self {
+        let uri = req.uri();
+        let status = res.status();
+        let method = req.method().clone();
+        let res = res.headers().clone();
+        let req = req.headers().clone();
+        Self::from_details(
+            uri,
+            method,
+            status,
+            req,
+            res,
+            SystemTime::now(),
+            Default::default(),
+        )
+    }
+
+    /// Caching with customized behavior. See `CacheOptions` for details.
+    ///
+    /// `response_time` is a timestamp when the response has been received, usually `SystemTime::now()`.
+    #[inline]
+    pub fn new_options<Req: RequestLike, Res: ResponseLike>(
         req: &Req,
         res: &Res,
+        response_time: SystemTime,
         opts: CacheOptions,
     ) -> Self {
         let uri = req.uri();
@@ -193,7 +211,7 @@ impl CachePolicy {
         let method = req.method().clone();
         let res = res.headers().clone();
         let req = req.headers().clone();
-        Self::from_details(uri, method, status, req, res, opts)
+        Self::from_details(uri, method, status, req, res, response_time, opts)
     }
 
     fn from_details(
@@ -202,6 +220,7 @@ impl CachePolicy {
         status: StatusCode,
         req: HeaderMap,
         mut res: HeaderMap,
+        response_time: SystemTime,
         opts: CacheOptions,
     ) -> Self {
         let mut res_cc = parse_cache_control(res.get_all("cache-control"));
@@ -245,6 +264,7 @@ impl CachePolicy {
             req_cc,
             opts,
             uri,
+            response_time,
         }
     }
 
@@ -483,7 +503,7 @@ impl CachePolicy {
         if self.opts.trust_server_date {
             self.server_date()
         } else {
-            self.opts.response_time
+            self.response_time
         }
     }
 
@@ -497,27 +517,27 @@ impl CachePolicy {
             });
         if let Some(date) = date {
             let max_clock_drift = Duration::from_secs(8 * 3600);
-            let clock_drift = if self.opts.response_time > date {
-                self.opts.response_time.duration_since(date)
+            let clock_drift = if self.response_time > date {
+                self.response_time.duration_since(date)
             } else {
-                date.duration_since(self.opts.response_time)
+                date.duration_since(self.response_time)
             }
             .unwrap();
             if clock_drift < max_clock_drift {
                 return date;
             }
         }
-        self.opts.response_time
+        self.response_time
     }
 
     /// Value of the Age header, in seconds, updated for the current time.
     pub fn age(&self, now: SystemTime) -> Duration {
         let mut age = self.age_header();
-        if let Ok(since_date) = self.opts.response_time.duration_since(self.date()) {
+        if let Ok(since_date) = self.response_time.duration_since(self.date()) {
             age = age.max(since_date);
         }
 
-        if let Ok(resident_time) = now.duration_since(self.opts.response_time) {
+        if let Ok(resident_time) = now.duration_since(self.response_time) {
             age += resident_time;
         }
         age
@@ -760,12 +780,16 @@ impl CachePolicy {
             response_headers.clone()
         };
 
-        let mut new_response = Response::builder().status(response_status).body(()).unwrap().into_parts().0;
-        new_response.headers = new_response_headers;
-        let mut new_options = self.opts;
-        new_options.response_time = response_time;
-
-        let new_policy = CachePolicy::new(request, &new_response, new_options);
+        let new_policy = CachePolicy::from_details(
+            request.uri(),
+            request.method().clone(),
+            response_status,
+            request.headers().clone(),
+            new_response_headers,
+            response_time,
+            self.opts,
+        );
+        let new_response = new_policy.cached_response(response_time);
 
         if matches && response.status() == StatusCode::NOT_MODIFIED {
             AfterResponse::NotModified(new_policy, new_response)

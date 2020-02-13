@@ -48,6 +48,7 @@ fn req(json: Value) -> Request<()> {
 }
 
 fn assert_cached(should_put: bool, response_code: i32) {
+    let now = SystemTime::now();
     let mut response = json!({
         "headers": {
             "last-modified": format_date(-105, 1),
@@ -63,9 +64,10 @@ fn assert_cached(should_put: bool, response_code: i32) {
         response["headers"]["www-authenticate"] = json!("Basic realm=\"protected area\"");
     }
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(response),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -136,7 +138,7 @@ fn test_ok_http_response_caching_by_response_code() {
 #[test]
 fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -145,6 +147,7 @@ fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
             },
             "body": "A"
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -156,7 +159,7 @@ fn test_default_expiration_date_fully_cached_for_less_than_24_hours() {
 #[test]
 fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -165,6 +168,7 @@ fn test_default_expiration_date_fully_cached_for_more_than_24_hours() {
             },
             "body": "A"
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -179,7 +183,7 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
     let now = SystemTime::now();
     // Chrome interprets max-age relative to the local clock. Both our cache
     // and Firefox both use the earlier of the local and server's clock.
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -187,6 +191,7 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
                 "cache-control": "max-age=60",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -197,7 +202,8 @@ fn test_max_age_in_the_past_with_date_header_but_no_last_modified_header() {
 
 #[test]
 fn test_max_age_preferred_over_lower_shared_max_age() {
-    let policy = CachePolicy::new(
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -205,6 +211,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
                 "cache-control": "s-maxage=60, max-age=180",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -216,7 +223,7 @@ fn test_max_age_preferred_over_lower_shared_max_age() {
 #[test]
 fn test_max_age_preferred_over_higher_max_age() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -224,6 +231,7 @@ fn test_max_age_preferred_over_higher_max_age() {
                 "cache-control": "s-maxage=60, max-age=180",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -236,7 +244,7 @@ fn request_method_not_cached(method: String) {
     // 1. seed the cache (potentially)
     // 2. expect a cache hit or miss
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &req(json!({
             "method": method,
             "headers": {}
@@ -246,6 +254,7 @@ fn request_method_not_cached(method: String) {
                 "expires": format_date(1, 3600),
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -277,7 +286,7 @@ fn test_request_method_trace_is_not_cached() {
 #[test]
 fn test_etag_and_expiration_date_in_the_future() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -286,6 +295,7 @@ fn test_etag_and_expiration_date_in_the_future() {
                 "expires": format_date(1, 3600),
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -296,7 +306,8 @@ fn test_etag_and_expiration_date_in_the_future() {
 
 #[test]
 fn test_client_side_no_store() {
-    let policy = CachePolicy::new(
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
         &req(json!({
             "headers": {
                 "cache-control": "no-store",
@@ -307,6 +318,7 @@ fn test_client_side_no_store() {
                 "cache-control": "max-age=60",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -318,7 +330,7 @@ fn test_client_side_no_store() {
 #[test]
 fn test_request_max_age() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -327,6 +339,7 @@ fn test_request_max_age() {
                 "expires": format_date(1, 3600),
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -367,13 +380,14 @@ fn test_request_max_age() {
 #[test]
 fn test_request_min_fresh() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
                 "cache-control": "max-age=60",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -413,7 +427,7 @@ fn test_request_min_fresh() {
 #[test]
 fn test_request_max_stale() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -421,6 +435,7 @@ fn test_request_max_stale() {
                 "date": format_date(-4, 60),
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -471,7 +486,7 @@ fn test_request_max_stale() {
 #[test]
 fn test_request_max_stale_not_honored_with_must_revalidate() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &Request::get("http://example.com").body(()).unwrap(),
         &res(json!({
             "headers": {
@@ -479,6 +494,7 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
                 "date": format_date(-4, 60),
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -520,7 +536,6 @@ fn test_do_not_cache_partial_response() {
                 "cache-control": "max-age=60",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_storable(), false);
@@ -549,7 +564,6 @@ fn test_no_store_kills_cache() {
                 "cache-control": "public, max-age=222",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -569,7 +583,6 @@ fn test_post_not_cacheable_by_default() {
                 "cache-control": "public",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -589,7 +602,6 @@ fn test_post_cacheable_explicitly() {
                 "cache-control": "public, max-age=222",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -611,7 +623,6 @@ fn test_public_cacheable_auth_is_ok() {
                 "cache-control": "public, max-age=222",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -633,7 +644,6 @@ fn test_proxy_cacheable_auth_is_ok() {
                 "cache-control": "max-age=0,s-maxage=12",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -652,7 +662,7 @@ fn test_proxy_cacheable_auth_is_ok() {
 #[test]
 fn test_private_auth_is_ok() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {
@@ -664,6 +674,7 @@ fn test_private_auth_is_ok() {
                 "cache-control": "max-age=111",
             }
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -687,7 +698,6 @@ fn test_revalidate_auth_is_ok() {
                 "cache-control": "max-age=88,must-revalidate",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_storable(), true);
@@ -708,7 +718,6 @@ fn test_auth_prevents_caching_by_default() {
                 "cache-control": "max-age=111",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -724,7 +733,6 @@ fn test_simple_miss() {
             "headers": {},
         })),
         &res(json!({})),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -742,7 +750,6 @@ fn test_simple_hit() {
             "cache-control": "public, max-age=999999"
         }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -761,7 +768,6 @@ fn test_weird_syntax() {
             "cache-control": ",,,,max-age =  456      ,"
         }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -789,7 +795,6 @@ fn test_quoted_syntax() {
             "cache-control": "  max-age = \"678\"      "
         }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -810,7 +815,6 @@ fn test_age_can_make_stale() {
                 "age": "101"
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -831,7 +835,6 @@ fn test_age_not_always_stale() {
                 "age": "15"
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -852,7 +855,6 @@ fn test_bogus_age_ignored() {
                 "age": "golden"
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -872,7 +874,6 @@ fn test_immutable_simple_hit() {
                 "cache-control": "immutable, max-age=999999",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -892,7 +893,6 @@ fn test_immutable_can_expire() {
                 "cache-control": "immutable, max-age=0",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -913,7 +913,6 @@ fn test_pragma_no_cache() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -932,7 +931,6 @@ fn test_no_store() {
                 "cache-control": "no-store, public, max-age=1",
             }
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -952,18 +950,18 @@ fn test_observe_private_cache() {
             "headers": {},
         })),
         &res(json!({ "headers": private_header })),
-        Default::default(),
     );
 
     assert_eq!(proxy_policy.is_stale(now), true);
     assert_eq!(proxy_policy.max_age().as_secs(), 0);
 
-    let ua_cache = CachePolicy::new(
+    let ua_cache = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
         })),
         &res(json!({ "headers": private_header })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -981,12 +979,13 @@ fn test_do_not_share_cookies() {
         "cache-control": "max-age=99",
     });
 
-    let proxy_policy = CachePolicy::new(
+    let proxy_policy = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
+        now,
         CacheOptions {
             shared: true,
             ..Default::default()
@@ -996,12 +995,13 @@ fn test_do_not_share_cookies() {
     assert_eq!(proxy_policy.is_stale(now), true);
     assert_eq!(proxy_policy.max_age().as_secs(), 0);
 
-    let ua_cache = CachePolicy::new(
+    let ua_cache = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -1019,12 +1019,13 @@ fn test_do_share_cookies_if_immutable() {
         "cache-control": "immutable, max-age=99",
     });
 
-    let proxy_policy = CachePolicy::new(
+    let proxy_policy = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
+        now,
         CacheOptions {
             shared: true,
             ..Default::default()
@@ -1043,12 +1044,13 @@ fn test_cache_explicitly_public_cookie() {
         "cache-control": "max-age=5, public",
     });
 
-    let proxy_policy = CachePolicy::new(
+    let proxy_policy = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
         })),
         &res(json!({ "headers": cookie_header })),
+        now,
         CacheOptions {
             shared: true,
             ..Default::default()
@@ -1072,7 +1074,6 @@ fn test_miss_max_age_equals_zero() {
                 "cache-control": "public, max-age=0",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -1093,7 +1094,6 @@ fn test_uncacheable_503() {
                 "cache-control": "public, max-age=0",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -1114,7 +1114,6 @@ fn test_cacheable_301() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -1134,7 +1133,6 @@ fn test_uncacheable_303() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -1155,7 +1153,6 @@ fn test_cacheable_303() {
                 "cache-control": "max-age=1000",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -1175,7 +1172,6 @@ fn test_uncacheable_412() {
                 "cache-control": "public, max-age=1000",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), true);
@@ -1196,7 +1192,6 @@ fn test_expired_expires_cache_with_max_age() {
                 "expires": "Sat, 07 May 2016 15:35:18 GMT",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy.is_stale(now), false);
@@ -1219,13 +1214,12 @@ fn test_expired_expires_cached_with_s_maxage() {
         &res(json!({
             "headers": s_max_age_headers,
         })),
-        Default::default(),
     );
 
     assert_eq!(proxy_policy.is_stale(now), false);
     assert_eq!(proxy_policy.max_age().as_secs(), 9999);
 
-    let ua_policy = CachePolicy::new(
+    let ua_policy = CachePolicy::new_options(
         &req(json!({
             "method": "GET",
             "headers": {},
@@ -1233,6 +1227,7 @@ fn test_expired_expires_cached_with_s_maxage() {
         &res(json!({
             "headers": s_max_age_headers,
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -1256,7 +1251,6 @@ fn test_when_urls_match() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1287,7 +1281,6 @@ fn test_not_when_urls_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert!(!policy
@@ -1315,7 +1308,6 @@ fn test_when_methods_match() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert!(
@@ -1348,7 +1340,6 @@ fn test_not_when_hosts_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert!(policy
@@ -1388,7 +1379,6 @@ fn test_when_methods_match_head() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1419,7 +1409,6 @@ fn test_not_when_methods_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert!(!policy
@@ -1447,7 +1436,6 @@ fn test_not_when_methods_mismatch_head() {
                 "cache-control": "max-age=2",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1477,7 +1465,6 @@ fn test_not_when_proxy_revalidating() {
                 "cache-control": "max-age=2, proxy-revalidate ",
             },
         })),
-        Default::default(),
     );
 
     assert!(!policy
@@ -1493,7 +1480,7 @@ fn test_not_when_proxy_revalidating() {
 #[test]
 fn test_when_not_a_proxy_revalidating() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &req(json!({
             "headers": {},
         })),
@@ -1503,6 +1490,7 @@ fn test_when_not_a_proxy_revalidating() {
                 "cache-control": "max-age=2, proxy-revalidate ",
             },
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -1524,7 +1512,7 @@ fn test_when_not_a_proxy_revalidating() {
 #[test]
 fn test_not_when_no_cache_requesting() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::new_options(
         &req(json!({
             "headers": {},
         })),
@@ -1533,6 +1521,7 @@ fn test_not_when_no_cache_requesting() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
         CacheOptions {
             shared: false,
             ..Default::default()
@@ -1596,7 +1585,6 @@ fn test_vary_basic() {
                 "vary": "weather",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1643,7 +1631,6 @@ fn test_asterisks_does_not_match() {
                 "vary": "*",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1676,7 +1663,6 @@ fn test_asterisks_is_stale() {
                 "vary": "*",
             },
         })),
-        Default::default(),
     );
 
     let policy_two = CachePolicy::new(
@@ -1691,7 +1677,6 @@ fn test_asterisks_is_stale() {
                 "vary": "weather",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(policy_one.is_stale(now), true);
@@ -1713,7 +1698,6 @@ fn test_values_are_case_sensitive() {
                 "vary": "Weather",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1760,7 +1744,6 @@ fn test_irrelevant_headers_ignored() {
                 "vary": "moon-phase",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1821,7 +1804,6 @@ fn test_absence_is_meaningful() {
                 "vary": "moon-phase, weather",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1882,7 +1864,6 @@ fn test_all_values_must_match() {
                 "vary": "weather, sun",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1932,7 +1913,6 @@ fn test_whitespace_is_okay() {
                 "vary": "    weather       ,     sun     ",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(
@@ -1995,7 +1975,6 @@ fn test_order_is_irrelevant() {
                 "vary": "weather, sun",
             },
         })),
-        Default::default(),
     );
 
     let policy_two = CachePolicy::new(
@@ -2011,7 +1990,6 @@ fn test_order_is_irrelevant() {
                 "vary": "sun, weather",
             },
         })),
-        Default::default(),
     );
 
     assert_eq!(

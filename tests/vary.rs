@@ -23,7 +23,6 @@ fn test_vary_basic() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -53,7 +52,6 @@ fn test_asterisks_does_not_match() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "ok")),
         &response,
-        Default::default(),
     );
 
     assert!(!policy
@@ -74,7 +72,6 @@ fn test_asterisks_is_stale() {
                 .header(header::CACHE_CONTROL, "public,max-age=99")
                 .header(header::VARY, "*"),
         ),
-        Default::default(),
     );
 
     let policy_two = CachePolicy::new(
@@ -84,7 +81,6 @@ fn test_asterisks_is_stale() {
                 .header(header::CACHE_CONTROL, "public,max-age=99")
                 .header(header::VARY, "weather"),
         ),
-        Default::default(),
     );
 
     assert!(policy_one.is_stale(now));
@@ -103,7 +99,6 @@ fn test_values_are_case_sensitive() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "BAD")),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -133,7 +128,6 @@ fn test_irrelevant_headers_ignored() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -170,7 +164,6 @@ fn test_absence_is_meaningful() {
     let policy = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -212,7 +205,6 @@ fn test_all_values_must_match() {
                 .header("weather", "nice"),
         ),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -254,7 +246,6 @@ fn test_whitespace_is_okay() {
                 .header("weather", "nice"),
         ),
         &response,
-        Default::default(),
     );
 
     assert!(policy
@@ -305,7 +296,6 @@ fn test_order_is_irrelevant() {
                 .header("weather", "nice"),
         ),
         &response_one,
-        Default::default(),
     );
 
     let policy_two = CachePolicy::new(
@@ -315,7 +305,6 @@ fn test_order_is_irrelevant() {
                 .header("weather", "nice"),
         ),
         &response_two,
-        Default::default(),
     );
 
     assert!(policy_one
