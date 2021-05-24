@@ -150,7 +150,7 @@ impl Default for CacheOptions {
 /// HTTP RFC 7234 rules for user agents and shared caches. It's aware of many
 /// tricky details such as the Vary header, proxy revalidation, and
 /// authenticated responses.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "with_serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
 pub struct CachePolicy {
     #[cfg_attr(feature = "with_serde", serde(with = "http_serde::header_map"))]
