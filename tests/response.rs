@@ -1,7 +1,9 @@
-use chrono::{Duration, Utc};
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
+use time::Duration;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -10,6 +12,10 @@ fn request_parts(builder: http::request::Builder) -> http::request::Parts {
 
 fn response_parts(builder: http::response::Builder) -> http::response::Parts {
     builder.body(()).unwrap().into_parts().0
+}
+
+fn now_rfc2822() -> String {
+    OffsetDateTime::now_utc().format(&Rfc2822).unwrap()
 }
 
 #[test]
@@ -192,7 +198,7 @@ fn test_cache_old_files() {
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(
             Response::builder()
-                .header(header::DATE, Utc::now().to_rfc2822())
+                .header(header::DATE, now_rfc2822())
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
     );
@@ -234,9 +240,9 @@ fn test_cache_immutable_files() {
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(
             Response::builder()
-                .header(header::DATE, Utc::now().to_rfc2822())
+                .header(header::DATE, now_rfc2822())
                 .header(header::CACHE_CONTROL, "immutable")
-                .header(header::LAST_MODIFIED, Utc::now().to_rfc2822()),
+                .header(header::LAST_MODIFIED, now_rfc2822()),
         ),
     );
 
@@ -251,9 +257,9 @@ fn test_immutable_can_be_off() {
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(
             Response::builder()
-                .header(header::DATE, Utc::now().to_rfc2822())
+                .header(header::DATE, now_rfc2822())
                 .header(header::CACHE_CONTROL, "immutable")
-                .header(header::LAST_MODIFIED, Utc::now().to_rfc2822()),
+                .header(header::LAST_MODIFIED, now_rfc2822()),
         ),
         now,
         CacheOptions {
@@ -573,10 +579,11 @@ fn test_max_age_wins_over_future_expires() {
                 .header(header::CACHE_CONTROL, "public, max-age=333")
                 .header(
                     header::EXPIRES,
-                    Utc::now()
-                        .checked_add_signed(Duration::hours(1))
+                    OffsetDateTime::now_utc()
+                        .checked_add(Duration::hours(1))
                         .unwrap()
-                        .to_rfc2822(),
+                        .format(&Rfc2822)
+                        .unwrap(),
                 ),
         ),
     );

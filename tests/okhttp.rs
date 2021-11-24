@@ -1,7 +1,8 @@
-use chrono::{DateTime, Utc};
 use http::{header, HeaderValue, Request, Response};
 use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -464,14 +465,11 @@ fn test_do_not_cache_partial_response() {
 }
 
 fn format_date(delta: i64, unit: i64) -> String {
-    let now: DateTime<Utc> = Utc::now();
-    let timestamp = now.timestamp() + delta * unit;
+    let now = OffsetDateTime::now_utc();
+    let timestamp = now.unix_timestamp() + delta * unit;
 
-    let date = DateTime::<Utc>::from_utc(
-        chrono::NaiveDateTime::from_timestamp(timestamp as _, 0),
-        Utc,
-    );
-    date.to_rfc2822()
+    let date = OffsetDateTime::from_unix_timestamp(timestamp).unwrap();
+    date.format(&Rfc2822).unwrap()
 }
 
 fn get_cached_response(
