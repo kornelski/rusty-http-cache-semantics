@@ -3,7 +3,6 @@
 //! Tells when responses can be reused from a cache, taking into account [HTTP RFC 7234](http://httpwg.org/specs/rfc7234.html) rules for user agents and shared caches.
 //! It's aware of many tricky details such as the `Vary` header, proxy revalidation, and authenticated responses.
 
-use chrono::prelude::*;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::Method;
@@ -15,6 +14,8 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
+use time::format_description::FormatItem;
+use time::OffsetDateTime;
 
 // rfc7231 6.1
 const STATUS_CODE_CACHEABLE_BY_DEFAULT: &[u16] =
@@ -44,6 +45,8 @@ const EXCLUDED_FROM_REVALIDATION_UPDATE: &[&str] = &[
     "transfer-encoding",
     "content-range",
 ];
+
+const RFC2822: &[FormatItem] = time::macros::format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory][offset_minute]");
 
 type CacheControl = HashMap<Box<str>, Option<Box<str>>>;
 
@@ -471,16 +474,15 @@ impl CachePolicy {
                 HeaderValue::from_static(r#"113 - "rfc7234 5.5.4""#),
             );
         }
-        let timestamp = now
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp as _, 0), Utc);
+        let date = OffsetDateTime::from(now);
         headers.insert(
             "age",
             HeaderValue::from_str(&format!("{}", age.as_secs() as u32)).unwrap(),
         );
-        headers.insert("date", HeaderValue::from_str(&date.to_rfc2822()).unwrap());
+        headers.insert(
+            "date",
+            HeaderValue::from_str(&date.format(RFC2822).unwrap()).unwrap(),
+        );
 
         let mut parts = Response::builder()
             .status(self.status)
@@ -495,11 +497,11 @@ impl CachePolicy {
         let date = self
             .res
             .get_str("date")
-            .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
+            .and_then(|d| OffsetDateTime::parse(d, RFC2822).ok())
             .and_then(|d| {
-                SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(d.timestamp() as _))
+                SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(d.unix_timestamp() as u64))
             });
-        return date.unwrap_or(self.response_time)
+        return date.unwrap_or(self.response_time);
     }
 
     /// Tells how long the response has been sitting in cache(s).
@@ -570,12 +572,12 @@ impl CachePolicy {
 
         let server_date = self.raw_server_date();
         if let Some(expires) = self.res.get_str("expires") {
-            return match DateTime::parse_from_rfc2822(expires) {
+            return match OffsetDateTime::parse(expires, RFC2822) {
                 // A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
                 Err(_) => Duration::from_secs(0),
                 Ok(expires) => {
                     let expires = SystemTime::UNIX_EPOCH
-                        + Duration::from_secs(expires.timestamp().max(0) as _);
+                        + Duration::from_secs(expires.unix_timestamp().max(0) as _);
                     return default_min_ttl
                         .max(expires.duration_since(server_date).unwrap_or_default());
                 }
@@ -583,9 +585,9 @@ impl CachePolicy {
         }
 
         if let Some(last_modified) = self.res.get_str("last-modified") {
-            if let Ok(last_modified) = DateTime::parse_from_rfc2822(last_modified) {
+            if let Ok(last_modified) = OffsetDateTime::parse(last_modified, RFC2822) {
                 let last_modified = SystemTime::UNIX_EPOCH
-                    + Duration::from_secs(last_modified.timestamp().max(0) as _);
+                    + Duration::from_secs(last_modified.unix_timestamp().max(0) as _);
                 if let Ok(diff) = server_date.duration_since(last_modified) {
                     let secs_left = diff.as_secs() as f64 * self.opts.cache_heuristic as f64;
                     return default_min_ttl.max(Duration::from_secs(secs_left as _));
