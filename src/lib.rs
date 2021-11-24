@@ -108,7 +108,7 @@ fn format_cache_control(cc: &CacheControl) -> String {
 
 /// Configuration options which control behavior of the cache. Use with `CachePolicy::new_options()`.
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "with_serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
+#[cfg_attr(feature = "with_serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CacheOptions {
     /// If `true` (default), then the response is evaluated from a
     /// perspective of a shared cache (i.e. `private` is not cacheable and
@@ -151,7 +151,7 @@ impl Default for CacheOptions {
 /// tricky details such as the Vary header, proxy revalidation, and
 /// authenticated responses.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "with_serde", derive(serde_derive::Serialize, serde_derive::Deserialize))]
+#[cfg_attr(feature = "with_serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CachePolicy {
     #[cfg_attr(feature = "with_serde", serde(with = "http_serde::header_map"))]
     req: HeaderMap,
