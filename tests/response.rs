@@ -505,6 +505,37 @@ fn test_expired_expires_cache_with_max_age() {
 }
 
 #[test]
+fn request_mismatches() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new(
+        &request_parts(Request::builder().method(Method::GET).uri("/test")),
+        &response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "public, max-age=9999")
+                .header(header::EXPIRES, "Sat, 07 May 2016 15:35:18 GMT"),
+        ),
+    );
+
+    let mismatch = policy.before_request(&request_parts(Request::builder().method(Method::POST).uri("/test")), now);
+    assert!(matches!(mismatch, http_cache_semantics::BeforeRequest::Stale {matches, ..} if !matches));
+}
+
+#[test]
+fn request_matches() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new(
+        &request_parts(Request::builder().method(Method::GET).uri("/test")),
+        &response_parts(
+            Response::builder()
+                .header(header::CACHE_CONTROL, "public, max-age=0")
+        ),
+    );
+
+    let mismatch = policy.before_request(&request_parts(Request::builder().method(Method::GET).uri("/test")), now);
+    assert!(matches!(mismatch, http_cache_semantics::BeforeRequest::Stale {matches, ..} if matches));
+}
+
+#[test]
 fn test_expired_expires_cached_with_s_maxage() {
     let now = SystemTime::now();
     let request = request_parts(Request::builder().method(Method::GET));

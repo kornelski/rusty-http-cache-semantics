@@ -317,19 +317,19 @@ impl CachePolicy {
         let req_headers = req.headers();
 
         // revalidation allowed via HEAD
-        let (exact_match, may_revalidate) = self.request_matches(req);
+        let (matches, may_revalidate) = self.request_matches(req);
 
-        if exact_match && self.satisfies_without_revalidation(&req_headers, now) {
+        if matches && self.satisfies_without_revalidation(&req_headers, now) {
             BeforeRequest::Fresh(self.cached_response(now))
         } else if may_revalidate {
             BeforeRequest::Stale {
                 request: self.revalidation_request(req),
-                matches: false,
+                matches,
             }
         } else {
             BeforeRequest::Stale {
                 request: self.request_from_headers(req_headers.clone()),
-                matches: false,
+                matches,
             }
         }
     }
