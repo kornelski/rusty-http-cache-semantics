@@ -1,6 +1,6 @@
 [package]
 name = "http-cache-semantics"
-version = "0.9.12"
+version = "0.9.13"
 description = "RFC 7234. Parses HTTP headers to correctly compute cacheability of responses, even in complex cases"
 homepage = "https://lib.rs/http-cache-semantics"
 repository = "https://github.com/kornelski/rusty-http-cache-semantics"
@@ -16,7 +16,7 @@ readme = "README.md"
 [dependencies]
 chrono = { version = "0.4.19", default-features = false, features = ["clock"] }
 http = "0.2.4"
-http-serde = "1.0.2"
+http-serde = { version = "1.0.2", optional = true }
 serde = { version = "1.0.130", optional = true, features = ["derive"] }
 reqwest = { version = "0.11.3", optional = true }
 
@@ -26,7 +26,7 @@ serde_json = "1.0.64"
 
 [features]
 default = ["with_serde"]
-with_serde = ["serde"]
+with_serde = ["serde", "http-serde"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
