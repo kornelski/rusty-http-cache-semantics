@@ -1,13 +1,13 @@
 [package]
 name = "http-cache-semantics"
-version = "0.9.14"
+version = "1.0.0"
 description = "RFC 7234. Parses HTTP headers to correctly compute cacheability of responses, even in complex cases"
 homepage = "https://lib.rs/http-cache-semantics"
 repository = "https://github.com/kornelski/rusty-http-cache-semantics"
 documentation = "https://docs.rs/http-cache-semantics"
 license = "BSD-2-Clause"
 authors = ["Kornel <kornel@geekhood.net>", "Luna Graysen <luna.g@protonmail.com>", "Douglas Greenshields <dgreenshields@gmail.com>", "Kat Marchán <kzm@zkat.tech>"]
-edition = "2018"
+edition = "2021"
 categories = ["caching", "web-programming::http-client"]
 keywords = ["http", "cache", "headers", "cache-control", "proxy"]
 include = ["Cargo.toml", "README.md", "src/*.rs", "LICENSE"]
@@ -29,3 +29,6 @@ with_serde = ["serde", "http-serde"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+
+[badges]
+maintenance = { status = "passively-maintained" }
