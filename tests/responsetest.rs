@@ -1,6 +1,7 @@
-use chrono::prelude::*;
 use http::*;
 use http_cache_semantics::*;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc2822;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -675,8 +676,8 @@ fn date_str(now: SystemTime) -> String {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp as _, 0), Utc);
-    date.to_rfc2822()
+    let date = OffsetDateTime::from_unix_timestamp(timestamp as i64).unwrap();
+    date.format(&Rfc2822).unwrap()
 }
 
 fn get_cached_response(

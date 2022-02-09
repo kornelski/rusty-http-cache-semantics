@@ -1,8 +1,9 @@
-use chrono::offset::Utc;
-use chrono::Duration;
+use time::Duration;
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
@@ -32,10 +33,11 @@ fn test_when_urls_match() {
 #[test]
 fn test_when_expires_is_present() {
     let now = SystemTime::now();
-    let two_seconds_later = Utc::now()
-        .checked_add_signed(Duration::seconds(2))
+    let two_seconds_later = OffsetDateTime::now_utc()
+        .checked_add(Duration::seconds(2))
         .unwrap()
-        .to_rfc2822();
+        .format(&Rfc2822)
+        .unwrap();
     let response = &response_parts(
         Response::builder()
             .status(302)

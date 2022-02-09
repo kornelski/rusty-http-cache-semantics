@@ -2,7 +2,6 @@
 //! cached response can be reused, following the rules specified in [RFC
 //! 7234](https://httpwg.org/specs/rfc7234.html).
 
-use chrono::prelude::*;
 use http::header::HeaderName;
 use http::header::HeaderValue;
 use http::Request;
@@ -10,6 +9,8 @@ use http::Response;
 use http_cache_semantics::*;
 use serde_json::json;
 use serde_json::Value;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
 
 fn res(json: Value) -> Response<()> {
@@ -349,11 +350,11 @@ fn test_do_not_cache_partial_response() {
 }
 
 fn format_date(delta: i64, unit: i64) -> String {
-    let now: DateTime<Utc> = Utc::now();
-    let timestamp = now.timestamp() + delta * unit;
+    let now = OffsetDateTime::now_utc();
+    let timestamp = now.unix_timestamp() + delta * unit;
 
-    let date = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(timestamp as _, 0), Utc);
-    date.to_rfc2822()
+    let date = OffsetDateTime::from_unix_timestamp(timestamp).unwrap();
+    date.format(&Rfc2822).unwrap()
 }
 
 #[test]
