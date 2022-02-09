@@ -14,8 +14,8 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
-use time::OffsetDateTime;
 use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
 // rfc7231 6.1
 const STATUS_CODE_CACHEABLE_BY_DEFAULT: &[u16] =
@@ -320,7 +320,7 @@ impl CachePolicy {
         // revalidation allowed via HEAD
         let (matches, may_revalidate) = self.request_matches(req);
 
-        if matches && self.satisfies_without_revalidation(&req_headers, now) {
+        if matches && self.satisfies_without_revalidation(req_headers, now) {
             BeforeRequest::Fresh(self.cached_response(now))
         } else if may_revalidate {
             BeforeRequest::Stale {
@@ -499,7 +499,7 @@ impl CachePolicy {
             .and_then(|d| {
                 SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(d.unix_timestamp() as u64))
             });
-        return date.unwrap_or(self.response_time);
+        date.unwrap_or(self.response_time)
     }
 
     /// Tells how long the response has been sitting in cache(s).
@@ -665,7 +665,7 @@ impl CachePolicy {
             if let Some(last_modified) = self.res.get_str("last-modified") {
                 headers.insert(
                     "if-modified-since",
-                    HeaderValue::from_str(&last_modified).unwrap(),
+                    HeaderValue::from_str(last_modified).unwrap(),
                 );
             }
         }
@@ -740,7 +740,7 @@ impl CachePolicy {
             for (header, old_value) in &self.res {
                 let header = header.to_owned();
                 if let Some(new_value) = response_headers.get(&header) {
-                    if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&&header.as_str()) {
+                    if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&header.as_str()) {
                         new_response_headers.insert(header, new_value.to_owned());
                         continue;
                     }
@@ -829,10 +829,7 @@ impl BeforeRequest {
     /// For backwards compatibility only.
     /// Don't forget to use request headers from `BeforeRequest::Fresh`
     pub fn satisfies_without_revalidation(&self) -> bool {
-        match self {
-            Self::Fresh(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Fresh(_))
     }
 }
 

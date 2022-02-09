@@ -27,14 +27,14 @@ fn test_vary_basic() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "nice")),
+            &request_parts(Request::builder().header("weather", "nice")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "bad")),
+            &request_parts(Request::builder().header("weather", "bad")),
             now
         )
         .satisfies_without_revalidation());
@@ -56,7 +56,7 @@ fn test_asterisks_does_not_match() {
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "ok")),
+            &request_parts(Request::builder().header("weather", "ok")),
             now
         )
         .satisfies_without_revalidation());
@@ -103,14 +103,14 @@ fn test_values_are_case_sensitive() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "BAD")),
+            &request_parts(Request::builder().header("weather", "BAD")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "bad")),
+            &request_parts(Request::builder().header("weather", "bad")),
             now
         )
         .satisfies_without_revalidation());
@@ -132,21 +132,21 @@ fn test_irrelevant_headers_ignored() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "bad")),
+            &request_parts(Request::builder().header("weather", "bad")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "shining")),
+            &request_parts(Request::builder().header("weather", "shining")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("moon-phase", "full")),
+            &request_parts(Request::builder().header("moon-phase", "full")),
             now
         )
         .satisfies_without_revalidation());
@@ -168,14 +168,14 @@ fn test_absence_is_meaningful() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "nice")),
+            &request_parts(Request::builder().header("weather", "nice")),
             now,
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("weather", "nice")
                     .header("moon-phase", "")
@@ -185,7 +185,7 @@ fn test_absence_is_meaningful() {
         .satisfies_without_revalidation());
 
     assert!(!policy
-        .before_request(&mut request_parts(Request::builder()), now)
+        .before_request(&request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 
@@ -209,7 +209,7 @@ fn test_all_values_must_match() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("sun", "shining")
                     .header("weather", "nice")
@@ -220,7 +220,7 @@ fn test_all_values_must_match() {
 
     assert!(!policy
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("sun", "shining")
                     .header("weather", "bad")
@@ -250,7 +250,7 @@ fn test_whitespace_is_okay() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("sun", "shining")
                     .header("weather", "nice")
@@ -261,14 +261,14 @@ fn test_whitespace_is_okay() {
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("weather", "nice")),
+            &request_parts(Request::builder().header("weather", "nice")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header("sun", "shining")),
+            &request_parts(Request::builder().header("sun", "shining")),
             now
         )
         .satisfies_without_revalidation());
@@ -309,7 +309,7 @@ fn test_order_is_irrelevant() {
 
     assert!(policy_one
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("weather", "nice")
                     .header("sun", "shining")
@@ -320,7 +320,7 @@ fn test_order_is_irrelevant() {
 
     assert!(policy_one
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("sun", "shining")
                     .header("weather", "nice")
@@ -331,7 +331,7 @@ fn test_order_is_irrelevant() {
 
     assert!(policy_two
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("weather", "nice")
                     .header("sun", "shining")
@@ -342,7 +342,7 @@ fn test_order_is_irrelevant() {
 
     assert!(policy_two
         .before_request(
-            &mut request_parts(
+            &request_parts(
                 Request::builder()
                     .header("sun", "shining")
                     .header("weather", "nice")

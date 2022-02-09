@@ -1,9 +1,9 @@
 use http::{header, HeaderValue, Request, Response};
 use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
-use time::OffsetDateTime;
-use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
     builder.body(()).unwrap().into_parts().0
@@ -312,13 +312,13 @@ fn test_request_max_age() {
     assert!(!policy.is_stale(now));
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=90")),
             now
         )
         .satisfies_without_revalidation());
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-age=30")),
             now
         )
         .satisfies_without_revalidation());
@@ -341,14 +341,14 @@ fn test_request_min_fresh() {
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=120")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "min-fresh=10")),
             now
         )
         .satisfies_without_revalidation());
@@ -375,21 +375,21 @@ fn test_request_max_stale() {
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=10")),
             now
         )
         .satisfies_without_revalidation());
@@ -417,14 +417,14 @@ fn test_request_max_stale_not_honored_with_must_revalidate() {
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale=180")),
             now
         )
         .satisfies_without_revalidation());
 
     assert!(!policy
         .before_request(
-            &mut request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
+            &request_parts(Request::builder().header(header::CACHE_CONTROL, "max-stale")),
             now
         )
         .satisfies_without_revalidation());

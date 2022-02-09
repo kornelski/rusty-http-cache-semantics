@@ -14,17 +14,15 @@ fn response_parts(builder: http::response::Builder) -> http::response::Parts {
     builder.body(()).unwrap().into_parts().0
 }
 
-fn simple_request_builder_for_update(
-    additional_headers: Option<HeaderMap>,
-) -> http::request::Builder {
+fn simple_request_builder_for_update(additional_headers: Option<HeaderMap>) -> http::request::Builder {
     let mut builder = Request::builder()
         .header(header::HOST, "www.w3c.org")
         .header(header::CONNECTION, "close")
         .uri("/Protocols/rfc2616/rfc2616-sec14.html");
 
     let builder_headers = builder.headers_mut().unwrap();
-    if additional_headers.is_some() {
-        for (key, value) in additional_headers.unwrap() {
+    if let Some(h) = additional_headers {
+        for (key, value) in h {
             builder_headers.insert(key.unwrap(), value);
         }
     }

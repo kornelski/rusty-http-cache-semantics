@@ -124,6 +124,6 @@ fn test_auth_prevents_caching_by_default() {
         &cacheable_response(),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!(policy.is_storable(), false);
 }

@@ -81,7 +81,7 @@ fn test_ok_if_method_changes_to_head() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut request_parts(
+        &request_parts(
             simple_request_builder()
                 .method(Method::HEAD)
                 .header("pragma", "no-cache"),
@@ -189,7 +189,7 @@ fn test_when_entity_tag_validator_is_present() {
 #[test]
 fn test_skips_weak_validators_on_post() {
     let now = SystemTime::now();
-    let mut post_request = request_parts(
+    let post_request = request_parts(
         simple_request_builder()
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
@@ -205,7 +205,7 @@ fn test_skips_weak_validators_on_post() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut post_request,
+        &post_request,
         now + Duration::from_secs(3600 * 24),
     )
     .headers;
@@ -220,7 +220,7 @@ fn test_skips_weak_validators_on_post() {
 #[test]
 fn test_skips_weak_validators_on_post_2() {
     let now = SystemTime::now();
-    let mut post_request = request_parts(
+    let post_request = request_parts(
         simple_request_builder()
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\""),
@@ -234,7 +234,7 @@ fn test_skips_weak_validators_on_post_2() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut post_request,
+        &post_request,
         now + Duration::from_secs(3600 * 24),
     )
     .headers;
@@ -246,7 +246,7 @@ fn test_skips_weak_validators_on_post_2() {
 #[test]
 fn test_merges_validators() {
     let now = SystemTime::now();
-    let mut post_request = request_parts(
+    let post_request = request_parts(
         simple_request_builder()
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
     );
@@ -262,7 +262,7 @@ fn test_merges_validators() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut post_request,
+        &post_request,
         now + Duration::from_secs(3600 * 24),
     )
     .headers;
@@ -393,7 +393,7 @@ fn test_merges_etags() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut request_parts(
+        &request_parts(
             simple_request_builder()
                 .header(header::HOST, "www.w3c.org")
                 .header(header::IF_NONE_MATCH, "\"foo\", \"bar\""),
@@ -436,7 +436,7 @@ fn test_should_send_the_last_modified_value() {
 #[test]
 fn test_should_not_send_the_last_modified_value_for_post() {
     let now = SystemTime::now();
-    let mut post_request = request_parts(
+    let post_request = request_parts(
         Request::builder()
             .method(Method::POST)
             .header(header::IF_MODIFIED_SINCE, "yesterday"),
@@ -451,7 +451,7 @@ fn test_should_not_send_the_last_modified_value_for_post() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut post_request,
+        &post_request,
         now + Duration::from_secs(3600 * 24),
     )
     .headers;
@@ -462,7 +462,7 @@ fn test_should_not_send_the_last_modified_value_for_post() {
 #[test]
 fn test_should_not_send_the_last_modified_value_for_range_request() {
     let now = SystemTime::now();
-    let mut range_request = request_parts(
+    let range_request = request_parts(
         Request::builder()
             .method(Method::GET)
             .header(header::ACCEPT_RANGES, "1-3")
@@ -478,7 +478,7 @@ fn test_should_not_send_the_last_modified_value_for_range_request() {
 
     let headers = get_revalidation_request(
         &policy,
-        &mut range_request,
+        &range_request,
         now + Duration::from_secs(3600 * 24),
     )
     .headers;

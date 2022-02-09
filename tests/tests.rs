@@ -9,9 +9,9 @@ use http::Response;
 use http_cache_semantics::*;
 use serde_json::json;
 use serde_json::Value;
-use time::OffsetDateTime;
-use time::format_description::well_known::Rfc2822;
 use std::time::SystemTime;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
 fn res(json: Value) -> Response<()> {
     let mut res = Response::builder()
@@ -304,19 +304,16 @@ fn test_request_min_fresh() {
     );
     assert_eq!(policy.is_stale(now), false);
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "min-fresh=10",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "cache-control": "min-fresh=10",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -374,7 +371,7 @@ fn test_no_store_kills_cache() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!(policy.is_storable(), false);
 }
 
@@ -393,7 +390,7 @@ fn test_post_not_cacheable_by_default() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!(policy.is_storable(), false);
 }
 
@@ -413,7 +410,7 @@ fn test_post_cacheable_explicitly() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -434,7 +431,7 @@ fn test_public_cacheable_auth_is_ok() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -455,15 +452,15 @@ fn test_proxy_cacheable_auth_is_ok() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 
     #[cfg(feature = "with_serde")]
     {
         let json = serde_json::to_string(&policy).unwrap();
         let policy: CachePolicy = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(!policy.is_stale(now), true);
-        assert_eq!(policy.is_storable(), true);
+        assert!(!policy.is_stale(now));
+        assert!(policy.is_storable());
     }
 }
 
@@ -489,7 +486,7 @@ fn test_private_auth_is_ok() {
         },
     );
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -508,7 +505,7 @@ fn test_revalidate_auth_is_ok() {
         })),
     );
 
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -528,7 +525,7 @@ fn test_auth_prevents_caching_by_default() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!(policy.is_storable(), false);
 }
 
@@ -543,7 +540,7 @@ fn test_simple_miss() {
         &res(json!({})),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
 }
 
 #[test]
@@ -625,8 +622,8 @@ fn test_age_can_make_stale() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_stale(now));
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -646,7 +643,7 @@ fn test_age_not_always_stale() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -666,7 +663,7 @@ fn test_bogus_age_ignored() {
     );
 
     assert_eq!(policy.is_stale(now), false);
-    assert_eq!(policy.is_storable(), true);
+    assert!(policy.is_storable());
 }
 
 #[test]
@@ -703,7 +700,7 @@ fn test_immutable_can_expire() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -723,7 +720,7 @@ fn test_pragma_no_cache() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
 }
 
 #[test]
@@ -741,7 +738,7 @@ fn test_no_store() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -760,7 +757,7 @@ fn test_observe_private_cache() {
         &res(json!({ "headers": private_header })),
     );
 
-    assert_eq!(proxy_policy.is_stale(now), true);
+    assert!(proxy_policy.is_stale(now));
     assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 0);
 
     let ua_cache = CachePolicy::new_options(
@@ -800,7 +797,7 @@ fn test_do_not_share_cookies() {
         },
     );
 
-    assert_eq!(proxy_policy.is_stale(now), true);
+    assert!(proxy_policy.is_stale(now));
     assert_eq!((proxy_policy.time_to_live(now) + proxy_policy.age(now)).as_secs(), 0);
 
     let ua_cache = CachePolicy::new_options(
@@ -884,7 +881,7 @@ fn test_miss_max_age_equals_zero() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -904,7 +901,7 @@ fn test_uncacheable_503() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -943,7 +940,7 @@ fn test_uncacheable_303() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -982,7 +979,7 @@ fn test_uncacheable_412() {
         })),
     );
 
-    assert_eq!(policy.is_stale(now), true);
+    assert!(policy.is_stale(now));
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
 }
 
@@ -1041,7 +1038,7 @@ fn test_expired_expires_cached_with_s_maxage() {
             ..Default::default()
         },
     );
-    assert_eq!(ua_policy.is_stale(now), true);
+    assert!(ua_policy.is_stale(now));
     assert_eq!((ua_policy.time_to_live(now) + ua_policy.age(now)).as_secs(), 0);
 }
 
@@ -1061,18 +1058,15 @@ fn test_when_urls_match() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "uri": "/",
-                    "headers": {},
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "uri": "/",
+                "headers": {},
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -1189,18 +1183,15 @@ fn test_when_methods_match_head() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "method": "HEAD",
-                    "headers": {},
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "method": "HEAD",
+                "headers": {},
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -1304,17 +1295,14 @@ fn test_when_not_a_proxy_revalidating() {
             ..Default::default()
         },
     );
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {},
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {},
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 }
 
 #[test]
@@ -1335,19 +1323,16 @@ fn test_not_when_no_cache_requesting() {
             ..Default::default()
         },
     );
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "cache-control": "fine",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "cache-control": "fine",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1395,19 +1380,16 @@ fn test_vary_basic() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1487,7 +1469,7 @@ fn test_asterisks_is_stale() {
         })),
     );
 
-    assert_eq!(policy_one.is_stale(now), true);
+    assert!(policy_one.is_stale(now));
     assert_eq!(policy_two.is_stale(now), false);
 }
 
@@ -1508,19 +1490,16 @@ fn test_values_are_case_sensitive() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "BAD",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "BAD",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1554,33 +1533,27 @@ fn test_irrelevant_headers_ignored() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "bad",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "bad",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "shining",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "shining",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1614,19 +1587,16 @@ fn test_absence_is_meaningful() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1674,20 +1644,17 @@ fn test_all_values_must_match() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "sun": "shining",
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "sun": "shining",
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1723,20 +1690,17 @@ fn test_whitespace_is_okay() {
         })),
     );
 
-    assert_eq!(
-        policy
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "sun": "shining",
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "sun": "shining",
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
     assert_eq!(
         policy
@@ -1800,63 +1764,51 @@ fn test_order_is_irrelevant() {
         })),
     );
 
-    assert_eq!(
-        policy_one
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "nice",
-                        "sun": "shining",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy_one
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "nice",
+                    "sun": "shining",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert_eq!(
-        policy_one
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "sun": "shining",
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy_one
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "sun": "shining",
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert_eq!(
-        policy_two
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "weather": "nice",
-                        "sun": "shining",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy_two
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "weather": "nice",
+                    "sun": "shining",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 
-    assert_eq!(
-        policy_two
-            .before_request(
-                &req(json!({
-                    "headers": {
-                        "sun": "shining",
-                        "weather": "nice",
-                    },
-                })),
-                now
-            )
-            .satisfies_without_revalidation(),
-        true
-    );
+    assert!(policy_two
+        .before_request(
+            &req(json!({
+                "headers": {
+                    "sun": "shining",
+                    "weather": "nice",
+                },
+            })),
+            now
+        )
+        .satisfies_without_revalidation());
 }

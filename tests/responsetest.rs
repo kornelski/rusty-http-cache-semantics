@@ -1,9 +1,9 @@
 use http::*;
 use http_cache_semantics::*;
-use time::OffsetDateTime;
-use time::format_description::well_known::Rfc2822;
 use std::time::Duration;
 use std::time::SystemTime;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
 macro_rules! headers(
     { $($key:tt : $value:expr),* $(,)? } => {

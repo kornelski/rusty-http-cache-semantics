@@ -1,10 +1,10 @@
 use http::{header, Method, Request, Response};
 use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
+use std::time::SystemTime;
+use time::format_description::well_known::Rfc2822;
 use time::Duration;
 use time::OffsetDateTime;
-use time::format_description::well_known::Rfc2822;
-use std::time::SystemTime;
 
 fn request_parts(builder: http::request::Builder) -> http::request::Parts {
     builder.body(()).unwrap().into_parts().0
