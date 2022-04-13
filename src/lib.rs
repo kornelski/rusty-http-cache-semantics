@@ -19,7 +19,7 @@ use time::OffsetDateTime;
 
 // rfc7231 6.1
 const STATUS_CODE_CACHEABLE_BY_DEFAULT: &[u16] =
-    &[200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
+    &[200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
 
 // This implementation does not understand partial responses (206)
 const UNDERSTOOD_STATUSES: &[u16] = &[
