@@ -62,10 +62,10 @@ fn very_old_date() -> &'static str {
 }
 
 fn assert_no_connection(headers: &HeaderMap<HeaderValue>) {
-    assert!(!headers.contains_key(header::CONNECTION), "{:#?}", headers);
+    assert!(!headers.contains_key(header::CONNECTION), "{headers:#?}");
 }
 fn assert_custom_header(headers: &HeaderMap<HeaderValue>) {
-    assert!(headers.contains_key("x-custom"), "{:#?}", headers);
+    assert!(headers.contains_key("x-custom"), "{headers:#?}");
     assert_eq!(headers.get("x-custom").unwrap(), "yes");
 }
 
@@ -91,11 +91,7 @@ fn test_ok_if_method_changes_to_head() {
     .headers;
 
     assert_custom_header(&headers);
-    assert!(
-        headers.contains_key(header::IF_NONE_MATCH),
-        "{:#?}",
-        headers
-    );
+    assert!(headers.contains_key(header::IF_NONE_MATCH), "{headers:#?}");
     assert_eq!(headers.get(header::IF_NONE_MATCH).unwrap(), "\"123456789\"");
 }
 
@@ -505,10 +501,10 @@ fn get_revalidation_request(
     match policy.before_request(req, now) {
         http_cache_semantics::BeforeRequest::Stale { request, matches } => {
             if !matches {
-                eprintln!("warning: req doesn't match {:#?} vs {:#?}", req, policy);
+                eprintln!("warning: req doesn't match {req:#?} vs {policy:#?}");
             }
             request
         }
-        _ => panic!("no revalidation needed {:#?} vs {:#?}", req, policy),
+        _ => panic!("no revalidation needed {req:#?} vs {policy:#?}"),
     }
 }

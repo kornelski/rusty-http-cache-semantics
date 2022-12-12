@@ -98,7 +98,7 @@ fn pre_check_tolerated() {
             "cache-control": cc
         },
     );
-    assert!(cache.is_stale(now), "{:#?}", cache);
+    assert!(cache.is_stale(now), "{cache:#?}");
     assert!(!cache.is_storable());
     assert_eq!(cache.time_to_live(now).as_secs(), 0);
     assert_eq!(
@@ -405,7 +405,7 @@ fn blank_cache_control_and_pragma_no_cache() {
             "last-modified": date_str(SystemTime::now() - Duration::from_secs(10)),
         },
     );
-    assert!(!cache.is_stale(SystemTime::now()), "{:#?}", cache);
+    assert!(!cache.is_stale(SystemTime::now()), "{cache:#?}");
 }
 
 #[test]

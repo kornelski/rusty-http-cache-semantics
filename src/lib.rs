@@ -250,17 +250,7 @@ impl CachePolicy {
             res_cc.insert("no-cache".into(), None);
         }
 
-        Self {
-            status,
-            method,
-            res,
-            req,
-            res_cc,
-            req_cc,
-            opts,
-            uri,
-            response_time,
-        }
+        Self { req, res, uri, status, method, opts, res_cc, req_cc, response_time }
     }
 
     /// Returns `true` if the response can be stored in a cache. If it's
@@ -431,7 +421,7 @@ impl CachePolicy {
             .iter()
             .filter(|(h, _)| !HOP_BY_HOP_HEADERS.contains(&h.as_str()))
         {
-            headers.insert(h.to_owned(), v.to_owned());
+            headers.insert(h.clone(), v.clone());
         }
 
         // 9.1.  Connection
@@ -587,7 +577,7 @@ impl CachePolicy {
                 let last_modified = SystemTime::UNIX_EPOCH
                     + Duration::from_secs(last_modified.unix_timestamp().max(0) as _);
                 if let Ok(diff) = server_date.duration_since(last_modified) {
-                    let secs_left = diff.as_secs() as f64 * self.opts.cache_heuristic as f64;
+                    let secs_left = diff.as_secs() as f64 * f64::from(self.opts.cache_heuristic);
                     return default_min_ttl.max(Duration::from_secs(secs_left as _));
                 }
             }
@@ -738,14 +728,14 @@ impl CachePolicy {
             // use other header fields provided in the 304 (Not Modified) response to replace all instances
             // of the corresponding header fields in the stored response.
             for (header, old_value) in &self.res {
-                let header = header.to_owned();
+                let header = header.clone();
                 if let Some(new_value) = response_headers.get(&header) {
                     if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&header.as_str()) {
-                        new_response_headers.insert(header, new_value.to_owned());
+                        new_response_headers.insert(header, new_value.clone());
                         continue;
                     }
                 }
-                new_response_headers.insert(header, old_value.to_owned());
+                new_response_headers.insert(header, old_value.clone());
             }
             response_status = self.status;
             new_response_headers

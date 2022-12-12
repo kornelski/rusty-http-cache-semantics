@@ -78,10 +78,7 @@ fn assert_cached(should_put: bool, response_code: i32) {
     assert_eq!(
         should_put,
         policy.is_storable(),
-        "{}; {}; {:#?}",
-        should_put,
-        response_code,
-        policy
+        "{should_put}; {response_code}; {policy:#?}"
     );
 }
 
@@ -1122,8 +1119,7 @@ fn test_when_methods_match() {
                 now
             )
             .satisfies_without_revalidation(),
-        "{:?}",
-        policy
+        "{policy:?}"
     );
 }
 

@@ -134,7 +134,7 @@ fn get_revalidation_request(
     match policy.before_request(req, now) {
         http_cache_semantics::BeforeRequest::Stale { request, matches } => {
             if !matches {
-                eprintln!("warning: req doesn't match {:#?} vs {:?}", req, policy);
+                eprintln!("warning: req doesn't match {req:#?} vs {policy:?}");
             }
             request
         }
