@@ -518,7 +518,7 @@ impl CachePolicy {
     /// This counts since response's `Date` - `Age`.
     ///
     /// For an up-to-date value, see `time_to_live()`.
-    fn max_age(&self) -> Duration {
+    pub fn max_age(&self) -> Duration {
         if !self.is_storable() || self.res_cc.contains_key("no-cache") {
             return Duration::from_secs(0);
         }
