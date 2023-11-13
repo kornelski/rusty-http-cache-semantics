@@ -120,7 +120,7 @@ pub struct CacheOptions {
     pub shared: bool,
     /// `cache_heuristic` is a fraction of response's age that is used as a
     /// fallback cache duration. The default is 0.1 (10%), e.g. if a file
-    /// hasn't been modified for 100 days, it'll be cached for 100*0.1 = 10
+    /// hasn't been modified for 100 days, it'll be cached for 100×0.1 = 10
     /// days.
     pub cache_heuristic: f32,
     /// `immutable_min_time_to_live` is a duration to assume as the
@@ -296,11 +296,11 @@ impl CachePolicy {
     /// Returns whether the cached response is still fresh in the context of
     /// the new request.
     ///
-    /// If it returns `true`, then the given request matches the original
+    /// If it returns `Fresh`, then the given request matches the original
     /// response this cache policy has been created with, and the response can
     /// be reused without contacting the server.
     ///
-    /// If it returns `false`, then the response may not be matching at all
+    /// If it returns `Stale`, then the response may not be matching at all
     /// (e.g. it's for a different URL or method), or may require to be
     /// refreshed first. Either way, the new request's headers will have been
     /// updated for sending it to the origin server.
@@ -586,13 +586,17 @@ impl CachePolicy {
         default_min_ttl
     }
 
-    /// Returns approximate time in _milliseconds_ until the response becomes
-    /// stale (i.e. not fresh).
+    /// Returns approximate time until the response becomes
+    /// stale (i.e. not fresh). This is the correct way of getting the current `max-age` value.
     ///
-    /// After that time (when `time_to_live() <= 0`) the response might not be
+    /// After that time (when `time_to_live() == Duration::ZERO`) the response might not be
     /// usable without revalidation. However, there are exceptions, e.g. a
     /// client can explicitly allow stale responses, so always check with
     /// `before_request()`.
+    ///
+    /// If you're storing responses in a cache/database, keep them approximately for
+    /// the `time_to_live` duration plus some extra time to allow for revalidation
+    /// (an expired response is still useful).
     pub fn time_to_live(&self, now: SystemTime) -> Duration {
         self.max_age()
             .checked_sub(self.age(now))
@@ -612,6 +616,8 @@ impl CachePolicy {
     ///
     /// It returns request "parts" without a body. You can upgrade it to a full
     /// response with `Request::from_parts(parts, BYOB)` (the body is usually `()`).
+    ///
+    /// You don't need this if you use [`before_request()`]
     fn revalidation_request<Req: RequestLike>(&self, incoming_req: &Req) -> http::request::Parts {
         let mut headers = Self::copy_without_hop_by_hop_headers(incoming_req.headers());
 
