@@ -465,7 +465,7 @@ impl CachePolicy {
         let date = OffsetDateTime::from(now);
         headers.insert(
             "age",
-            HeaderValue::from_str(&format!("{}", age.as_secs() as u32)).unwrap(),
+            HeaderValue::from_str(&age.as_secs().to_string()).unwrap(),
         );
         headers.insert(
             "date",
