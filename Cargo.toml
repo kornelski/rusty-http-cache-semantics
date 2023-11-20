@@ -1,6 +1,6 @@
 [package]
 name = "http-cache-semantics"
-version = "1.0.2"
+version = "2.0.0"
 description = "RFC 7234. Parses HTTP headers to correctly compute cacheability of responses, even in complex cases"
 homepage = "https://lib.rs/http-cache-semantics"
 repository = "https://github.com/kornelski/rusty-http-cache-semantics"
@@ -12,20 +12,21 @@ categories = ["caching", "web-programming::http-client"]
 keywords = ["http", "cache", "headers", "cache-control", "proxy"]
 include = ["Cargo.toml", "README.md", "src/*.rs", "LICENSE"]
 readme = "README.md"
+rust-version = "1.64"
 
 [dependencies]
-http = "0.2.6"
-http-serde = { version = "1.1.0", optional = true }
-serde = { version = "1.0.136", optional = true, features = ["derive"] }
-reqwest = { version = "0.11.10", default-features = false, optional = true }
-time = { version = "0.3.9", features = ["parsing", "formatting"] }
+http = "1.0.0"
+http-serde = { version = "2.0.0", optional = true }
+serde = { version = "1.0.192", optional = true, features = ["derive"] }
+# reqwest = { version = "0.11.22", default-features = false, optional = true } # not upgraded yet
+time = { version = "0.3.30", features = ["parsing", "formatting"] }
 
 [dev-dependencies]
-serde_json = "1.0.79"
+serde_json = "1.0.108"
 
 [features]
-default = ["with_serde"]
-with_serde = ["dep:serde", "dep:http-serde"]
+default = ["serde"]
+serde = ["dep:serde", "dep:http-serde"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
