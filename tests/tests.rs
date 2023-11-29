@@ -451,7 +451,7 @@ fn test_proxy_cacheable_auth_is_ok() {
     assert_eq!(policy.is_stale(now), false);
     assert!(policy.is_storable());
 
-    #[cfg(feature = "with_serde")]
+    #[cfg(feature = "serde")]
     {
         let json = serde_json::to_string(&policy).unwrap();
         let policy: CachePolicy = serde_json::from_str(&json).unwrap();
@@ -575,7 +575,7 @@ fn test_weird_syntax() {
     assert_eq!(policy.is_stale(now), false);
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 456);
 
-    #[cfg(feature = "with_serde")]
+    #[cfg(feature = "serde")]
     {
         let json = serde_json::to_string(&policy).unwrap();
         let policy: CachePolicy = serde_json::from_str(&json).unwrap();

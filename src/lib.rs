@@ -109,7 +109,7 @@ fn format_cache_control(cc: &CacheControl) -> String {
 
 /// Configuration options which control behavior of the cache. Use with `CachePolicy::new_options()`.
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "with_serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CacheOptions {
     /// If `true` (default), then the response is evaluated from a
     /// perspective of a shared cache (i.e. `private` is not cacheable and
@@ -152,17 +152,17 @@ impl Default for CacheOptions {
 /// tricky details such as the Vary header, proxy revalidation, and
 /// authenticated responses.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "with_serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CachePolicy {
-    #[cfg_attr(feature = "with_serde", serde(with = "http_serde::header_map"))]
+    #[cfg_attr(feature = "serde", serde(with = "http_serde::header_map"))]
     req: HeaderMap,
-    #[cfg_attr(feature = "with_serde", serde(with = "http_serde::header_map"))]
+    #[cfg_attr(feature = "serde", serde(with = "http_serde::header_map"))]
     res: HeaderMap,
-    #[cfg_attr(feature = "with_serde", serde(with = "http_serde::uri"))]
+    #[cfg_attr(feature = "serde", serde(with = "http_serde::uri"))]
     uri: Uri,
-    #[cfg_attr(feature = "with_serde", serde(with = "http_serde::status_code"))]
+    #[cfg_attr(feature = "serde", serde(with = "http_serde::status_code"))]
     status: StatusCode,
-    #[cfg_attr(feature = "with_serde", serde(with = "http_serde::method"))]
+    #[cfg_attr(feature = "serde", serde(with = "http_serde::method"))]
     method: Method,
     opts: CacheOptions,
     res_cc: CacheControl,
