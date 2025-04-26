@@ -20,10 +20,10 @@ fn test_vary_basic() {
             .header(header::VARY, "weather"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -49,10 +49,10 @@ fn test_asterisks_does_not_match() {
             .header(header::VARY, "*"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "ok")),
         &response,
-    );
+    ).unwrap();
 
     assert!(!policy
         .before_request(
@@ -65,23 +65,23 @@ fn test_asterisks_does_not_match() {
 #[test]
 fn test_asterisks_is_stale() {
     let now = SystemTime::now();
-    let policy_one = CachePolicy::new(
+    let policy_one = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "ok")),
         &response_parts(
             Response::builder()
                 .header(header::CACHE_CONTROL, "public,max-age=99")
                 .header(header::VARY, "*"),
         ),
-    );
+    ).unwrap();
 
-    let policy_two = CachePolicy::new(
+    let policy_two = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "ok")),
         &response_parts(
             Response::builder()
                 .header(header::CACHE_CONTROL, "public,max-age=99")
                 .header(header::VARY, "weather"),
         ),
-    );
+    ).unwrap();
 
     assert!(policy_one.is_stale(now));
     assert!(!policy_two.is_stale(now));
@@ -96,10 +96,10 @@ fn test_values_are_case_sensitive() {
             .header(header::VARY, "weather"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "BAD")),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -125,10 +125,10 @@ fn test_irrelevant_headers_ignored() {
             .header(header::VARY, "moon-phase"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -161,10 +161,10 @@ fn test_absence_is_meaningful() {
             .header(header::VARY, "moon-phase, weather"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header("weather", "nice")),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -198,14 +198,14 @@ fn test_all_values_must_match() {
             .header(header::VARY, "weather, sun"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .header("sun", "shining")
                 .header("weather", "nice"),
         ),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -239,14 +239,14 @@ fn test_whitespace_is_okay() {
             .header(header::VARY, "    weather       ,     sun     "),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .header("sun", "shining")
                 .header("weather", "nice"),
         ),
         &response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -289,23 +289,23 @@ fn test_order_is_irrelevant() {
             .header(header::VARY, "sun, weather"),
     );
 
-    let policy_one = CachePolicy::new(
+    let policy_one = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .header("sun", "shining")
                 .header("weather", "nice"),
         ),
         &response_one,
-    );
+    ).unwrap();
 
-    let policy_two = CachePolicy::new(
+    let policy_two = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .header("sun", "shining")
                 .header("weather", "nice"),
         ),
         &response_two,
-    );
+    ).unwrap();
 
     assert!(policy_one
         .before_request(

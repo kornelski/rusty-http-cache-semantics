@@ -60,10 +60,10 @@ fn not_modified_response_headers_for_update(
     second_response_builder: http::response::Builder,
 ) -> Option<HeaderMap> {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(first_request_builder),
         &response_parts(first_response_builder),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,

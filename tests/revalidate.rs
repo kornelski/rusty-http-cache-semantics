@@ -29,24 +29,24 @@ fn cacheable_response_builder() -> http::response::Builder {
 }
 
 fn simple_request_with_etagged_response() -> CachePolicy {
-    CachePolicy::new(
+    CachePolicy::try_new(
         &simple_request(),
         &response_parts(cacheable_response_builder().header(header::ETAG, etag_value())),
-    )
+    ).unwrap()
 }
 
 fn simple_request_with_cacheable_response() -> CachePolicy {
-    CachePolicy::new(
+    CachePolicy::try_new(
         &simple_request(),
         &response_parts(cacheable_response_builder()),
-    )
+    ).unwrap()
 }
 
 fn simple_request_with_always_variable_response() -> CachePolicy {
-    CachePolicy::new(
+    CachePolicy::try_new(
         &simple_request(),
         &response_parts(cacheable_response_builder().header(header::VARY, "*")),
-    )
+    ).unwrap()
 }
 
 fn etag_value() -> &'static str {
@@ -190,14 +190,14 @@ fn test_skips_weak_validators_on_post() {
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &post_request,
         &response_parts(
             cacheable_response_builder()
                 .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -221,12 +221,12 @@ fn test_skips_weak_validators_on_post_2() {
             .method(Method::POST)
             .header(header::IF_NONE_MATCH, "W/\"weak\""),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &post_request,
         &response_parts(
             cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -246,7 +246,7 @@ fn test_merges_validators() {
         simple_request_builder()
             .header(header::IF_NONE_MATCH, "W/\"weak\", \"strong\", W/\"weak2\""),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &post_request,
         &response_parts(
             cacheable_response_builder()
@@ -254,7 +254,7 @@ fn test_merges_validators() {
                 .header(header::ETAG, etag_value())
                 .header(header::CACHE_CONTROL, "must-revalidate"),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -276,12 +276,12 @@ fn test_merges_validators() {
 #[test]
 fn test_when_last_modified_validator_is_present() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &simple_request(),
         &response_parts(
             cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -330,7 +330,7 @@ fn test_113_added() {
             .header(header::LAST_MODIFIED, very_old_date()),
     );
     let req = simple_request();
-    let policy = CachePolicy::new(&req, &very_old_response);
+    let policy = CachePolicy::try_new(&req, &very_old_response).unwrap();
 
     let headers = get_cached_response(&policy, &req, now).headers;
 
@@ -346,14 +346,14 @@ fn test_113_added() {
 fn test_removes_warnings() {
     let now = SystemTime::now();
     let req = request_parts(Request::builder());
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &req,
         &response_parts(
             Response::builder()
                 .header("cache-control", "max-age=2")
                 .header(header::WARNING, "199 test danger"),
         ),
-    );
+    ).unwrap();
 
     assert!(!get_cached_response(&policy, &req, now)
         .headers
@@ -363,14 +363,14 @@ fn test_removes_warnings() {
 #[test]
 fn test_must_contain_any_etag() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &simple_request(),
         &response_parts(
             cacheable_response_builder()
                 .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -407,14 +407,14 @@ fn test_merges_etags() {
 #[test]
 fn test_should_send_the_last_modified_value() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &simple_request(),
         &response_parts(
             cacheable_response_builder()
                 .header(header::LAST_MODIFIED, very_old_date())
                 .header(header::ETAG, etag_value()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -438,12 +438,12 @@ fn test_should_not_send_the_last_modified_value_for_post() {
             .header(header::IF_MODIFIED_SINCE, "yesterday"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &post_request,
         &response_parts(
             cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,
@@ -465,12 +465,12 @@ fn test_should_not_send_the_last_modified_value_for_range_request() {
             .header(header::IF_MODIFIED_SINCE, "yesterday"),
     );
 
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &range_request,
         &response_parts(
             cacheable_response_builder().header(header::LAST_MODIFIED, very_old_date()),
         ),
-    );
+    ).unwrap();
 
     let headers = get_revalidation_request(
         &policy,

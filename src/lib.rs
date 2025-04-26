@@ -147,6 +147,13 @@ impl Default for CacheOptions {
     }
 }
 
+/// A [`CachePolicy`] that MUST NOT have either the request or response stored.
+///
+/// Policies returned as `NotStorable` are policies where [`CachePolicy::is_storable()`] returns
+/// `true`.
+#[derive(Debug, Clone)]
+pub struct NotStorable(pub CachePolicy);
+
 /// Identifies when responses can be reused from a cache, taking into account
 /// HTTP RFC 7234 rules for user agents and shared caches. It's aware of many
 /// tricky details such as the Vary header, proxy revalidation, and
@@ -173,27 +180,81 @@ pub struct CachePolicy {
 impl CachePolicy {
     /// Cacheability of an HTTP response depends on how it was requested, so
     /// both request and response are required to create the policy.
+    ///
+    /// This constructor returns a [`Result`] to indicate if the cache policy is considered
+    /// storable. In the common case of disregarding these policies you can just ignore the
+    /// `Err(_)` case like so
+    ///
+    /// ```
+    /// # use http_cache_semantics::CachePolicy;
+    /// # let req = http::Request::<()>::default();
+    /// # let res = http::Response::<()>::default();
+    /// # let mut cache = std::collections::HashMap::new();
+    /// # let url = ();
+    /// if let Ok(policy) = CachePolicy::try_new(&req, &res) {
+    ///     cache.insert(url, policy);
+    /// }
+    /// ```
+    ///
+    /// and for the uncommon case of wanting to inspect cache policies regardless of whether or not
+    /// they should be stored then you can easily merge the `Ok(_)` and `Err(_)` cases together to
+    /// treat them the same
+    ///
+    /// ```
+    /// # use http_cache_semantics::CachePolicy;
+    /// # let req = http::Request::<()>::default();
+    /// # let res = http::Response::<()>::default();
+    /// # let mut cache = std::collections::HashMap::new();
+    /// # let url = ();
+    /// let policy = CachePolicy::try_new(&req, &res).unwrap_or_else(|err| err.0);
+    /// // ... do something with `policy`
+    /// if policy.is_storable() {
+    ///     cache.insert(url, policy);
+    /// }
+    /// ```
     #[inline]
-    pub fn new<Req: RequestLike, Res: ResponseLike>(req: &Req, res: &Res) -> Self {
+    pub fn try_new<Req: RequestLike, Res: ResponseLike>(
+        req: &Req,
+        res: &Res,
+    ) -> Result<Self, NotStorable> {
+        Self::try_new_with_options(req, res, SystemTime::now(), Default::default())
+    }
+
+    /// Caching with customized behavior. See [`CacheOptions`] for details.
+    ///
+    /// `response_time` is a timestamp when the response has been received, usually `SystemTime::now()`.
+    #[inline]
+    pub fn try_new_with_options<Req: RequestLike, Res: ResponseLike>(
+        req: &Req,
+        res: &Res,
+        response_time: SystemTime,
+        opts: CacheOptions,
+    ) -> Result<Self, NotStorable> {
         let uri = req.uri();
         let status = res.status();
         let method = req.method().clone();
         let res = res.headers().clone();
         let req = req.headers().clone();
-        Self::from_details(
-            uri,
-            method,
-            status,
-            req,
-            res,
-            SystemTime::now(),
-            Default::default(),
-        )
+        let policy = Self::from_details(uri, method, status, req, res, response_time, opts);
+        if policy.is_storable() {
+            Ok(policy)
+        } else {
+            Err(NotStorable(policy))
+        }
+    }
+
+    /// Cacheability of an HTTP response depends on how it was requested, so
+    /// both request and response are required to create the policy.
+    #[deprecated(note = "replaced with `CachePolicy::try_new`")]
+    #[inline]
+    pub fn new<Req: RequestLike, Res: ResponseLike>(req: &Req, res: &Res) -> Self {
+        Self::try_new(req, res).unwrap_or_else(|n_s| n_s.0)
     }
 
     /// Caching with customized behavior. See `CacheOptions` for details.
     ///
     /// `response_time` is a timestamp when the response has been received, usually `SystemTime::now()`.
+    #[deprecated(note = "replaced with `CachePolicy::try_new_with_options`")]
     #[inline]
     pub fn new_options<Req: RequestLike, Res: ResponseLike>(
         req: &Req,
@@ -201,12 +262,7 @@ impl CachePolicy {
         response_time: SystemTime,
         opts: CacheOptions,
     ) -> Self {
-        let uri = req.uri();
-        let status = res.status();
-        let method = req.method().clone();
-        let res = res.headers().clone();
-        let req = req.headers().clone();
-        Self::from_details(uri, method, status, req, res, response_time, opts)
+        Self::try_new_with_options(req, res, response_time, opts).unwrap_or_else(|n_s| n_s.0)
     }
 
     fn from_details(

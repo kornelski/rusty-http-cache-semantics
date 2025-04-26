@@ -23,7 +23,8 @@ fn test_when_urls_match() {
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
 
-    let policy = CachePolicy::new(&request_parts(Request::builder().uri("/")), response);
+    let policy = CachePolicy::try_new(&request_parts(Request::builder().uri("/")), response)
+        .unwrap();
 
     assert!(policy
         .before_request(&mut request_parts(Request::builder().uri("/")), now)
@@ -44,7 +45,7 @@ fn test_when_expires_is_present() {
             .header(header::EXPIRES, two_seconds_later),
     );
 
-    let policy = CachePolicy::new(&request_parts(Request::builder()), response);
+    let policy = CachePolicy::try_new(&request_parts(Request::builder()), response).unwrap();
 
     assert!(policy
         .before_request(&mut request_parts(Request::builder()), now)
@@ -59,10 +60,10 @@ fn test_when_methods_match() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(&request_parts(Request::builder().method(Method::GET)), now)
@@ -77,10 +78,10 @@ fn must_revalidate_allows_not_revalidating_fresh() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=200, must-revalidate"),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(&request_parts(Request::builder().method(Method::GET)), now)
@@ -103,10 +104,10 @@ fn must_revalidate_disallows_stale() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=200, must-revalidate"),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         response,
-    );
+    ).unwrap();
 
     let later = now + std::time::Duration::from_secs(300);
     assert!(!policy
@@ -137,10 +138,10 @@ fn test_not_when_hosts_mismatch() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().header(header::HOST, "foo")),
         response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(
@@ -165,10 +166,10 @@ fn test_when_methods_match_head() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::HEAD)),
         response,
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(&request_parts(Request::builder().method(Method::HEAD)), now)
@@ -183,7 +184,7 @@ fn test_not_when_proxy_revalidating() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
     );
-    let policy = CachePolicy::new(&request_parts(Request::builder()), response);
+    let policy = CachePolicy::try_new(&request_parts(Request::builder()), response).unwrap();
 
     assert!(!policy
         .before_request(&mut request_parts(Request::builder()), now)
@@ -198,7 +199,7 @@ fn test_when_not_a_proxy_revalidating() {
             .status(200)
             .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
     );
-    let policy = CachePolicy::new_options(
+    let policy = CachePolicy::try_new_with_options(
         &request_parts(Request::builder()),
         response,
         now,
@@ -206,7 +207,7 @@ fn test_when_not_a_proxy_revalidating() {
             shared: false,
             ..Default::default()
         },
-    );
+    ).unwrap();
 
     assert!(policy
         .before_request(&mut request_parts(Request::builder()), now)
@@ -217,7 +218,7 @@ fn test_when_not_a_proxy_revalidating() {
 fn test_not_when_no_cache_requesting() {
     let now = SystemTime::now();
     let response = &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=2"));
-    let policy = CachePolicy::new(&request_parts(Request::builder()), response);
+    let policy = CachePolicy::try_new(&request_parts(Request::builder()), response).unwrap();
 
     assert!(policy
         .before_request(

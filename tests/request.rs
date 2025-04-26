@@ -22,63 +22,59 @@ fn response_parts(builder: http::response::Builder) -> http::response::Parts {
 #[test]
 fn test_no_store_kills_cache() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .method(Method::GET)
                 .header(header::CACHE_CONTROL, "no-store"),
         ),
         &public_cacheable_response(),
-    );
+    ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
-    assert!(!policy.is_storable());
 }
 
 #[test]
 fn test_post_not_cacheable_by_default() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::POST)),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, "public")),
-    );
+    ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
-    assert!(!policy.is_storable());
 }
 
 #[test]
 fn test_post_cacheable_explicitly() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::POST)),
         &public_cacheable_response(),
-    );
+    ).unwrap();
 
     assert!(!policy.is_stale(now));
-    assert!(policy.is_storable());
 }
 
 #[test]
 fn test_public_cacheable_auth_is_ok() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .method(Method::GET)
                 .header(header::AUTHORIZATION, "test"),
         ),
         &public_cacheable_response(),
-    );
+    ).unwrap();
 
     assert!(!policy.is_stale(now));
-    assert!(policy.is_storable());
 }
 
 #[test]
 fn test_private_auth_is_ok() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new_options(
+    let policy = CachePolicy::try_new_with_options(
         &request_parts(
             Request::builder()
                 .method(Method::GET)
@@ -90,15 +86,14 @@ fn test_private_auth_is_ok() {
             shared: false,
             ..Default::default()
         },
-    );
+    ).unwrap();
 
     assert!(!policy.is_stale(now));
-    assert!(policy.is_storable());
 }
 
 #[test]
 fn test_revalidate_auth_is_ok() {
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .method(Method::GET)
@@ -107,7 +102,7 @@ fn test_revalidate_auth_is_ok() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "max-age=88,must-revalidate"),
         ),
-    );
+    ).unwrap();
 
     assert!(policy.is_storable());
 }
@@ -115,15 +110,14 @@ fn test_revalidate_auth_is_ok() {
 #[test]
 fn test_auth_prevents_caching_by_default() {
     let now = SystemTime::now();
-    let policy = CachePolicy::new(
+    let policy = CachePolicy::try_new(
         &request_parts(
             Request::builder()
                 .method(Method::GET)
                 .header(header::AUTHORIZATION, "test"),
         ),
         &cacheable_response(),
-    );
+    ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
-    assert_eq!(policy.is_storable(), false);
 }
