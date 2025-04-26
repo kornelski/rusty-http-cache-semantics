@@ -337,6 +337,7 @@ fn test_do_not_cache_partial_response() {
                 "cache-control": "max-age=60",
             }
         })),
+        SystemTime::now(),
     ).unwrap_err();
 }
 
@@ -363,6 +364,7 @@ fn test_no_store_kills_cache() {
                 "cache-control": "public, max-age=222",
             }
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -381,6 +383,7 @@ fn test_post_not_cacheable_by_default() {
                 "cache-control": "public",
             }
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -399,6 +402,7 @@ fn test_post_cacheable_explicitly() {
                 "cache-control": "public, max-age=222",
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -419,6 +423,7 @@ fn test_public_cacheable_auth_is_ok() {
                 "cache-control": "public, max-age=222",
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -439,6 +444,7 @@ fn test_proxy_cacheable_auth_is_ok() {
                 "cache-control": "max-age=0,s-maxage=12",
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -491,6 +497,7 @@ fn test_revalidate_auth_is_ok() {
                 "cache-control": "max-age=88,must-revalidate",
             }
         })),
+        SystemTime::now(),
     ).unwrap();
 }
 
@@ -509,6 +516,7 @@ fn test_auth_prevents_caching_by_default() {
                 "cache-control": "max-age=111",
             }
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -523,6 +531,7 @@ fn test_simple_miss() {
             "headers": {},
         })),
         &res(json!({})),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -540,6 +549,7 @@ fn test_simple_hit() {
             "cache-control": "public, max-age=999999"
         }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -558,6 +568,7 @@ fn test_weird_syntax() {
             "cache-control": ",,,,max-age =  456      ,"
         }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -585,6 +596,7 @@ fn test_quoted_syntax() {
             "cache-control": "  max-age = \"678\"      "
         }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -605,6 +617,7 @@ fn test_age_can_make_stale() {
                 "age": "101"
             }
         })),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -624,6 +637,7 @@ fn test_age_not_always_stale() {
                 "age": "15"
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -643,6 +657,7 @@ fn test_bogus_age_ignored() {
                 "age": "golden"
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -661,6 +676,7 @@ fn test_immutable_simple_hit() {
                 "cache-control": "immutable, max-age=999999",
             }
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -680,6 +696,7 @@ fn test_immutable_can_expire() {
                 "cache-control": "immutable, max-age=0",
             }
         })),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -700,6 +717,7 @@ fn test_pragma_no_cache() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             }
         })),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -718,6 +736,7 @@ fn test_no_store() {
                 "cache-control": "no-store, public, max-age=1",
             }
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -737,6 +756,7 @@ fn test_observe_private_cache() {
             "headers": {},
         })),
         &res(json!({ "headers": private_header })),
+        now,
     ).unwrap_err().0;
 
     assert!(proxy_policy.is_stale(now));
@@ -861,6 +881,7 @@ fn test_miss_max_age_equals_zero() {
                 "cache-control": "public, max-age=0",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -881,6 +902,7 @@ fn test_uncacheable_503() {
                 "cache-control": "public, max-age=0",
             },
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -901,6 +923,7 @@ fn test_cacheable_301() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             },
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -920,6 +943,7 @@ fn test_uncacheable_303() {
                 "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
             },
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -940,6 +964,7 @@ fn test_cacheable_303() {
                 "cache-control": "max-age=1000",
             },
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -959,6 +984,7 @@ fn test_uncacheable_412() {
                 "cache-control": "public, max-age=1000",
             },
         })),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -979,6 +1005,7 @@ fn test_expired_expires_cache_with_max_age() {
                 "expires": "Sat, 07 May 2016 15:35:18 GMT",
             },
         })),
+        now,
     ).unwrap();
 
     assert_eq!(policy.is_stale(now), false);
@@ -1001,6 +1028,7 @@ fn test_expired_expires_cached_with_s_maxage() {
         &res(json!({
             "headers": s_max_age_headers,
         })),
+        now,
     ).unwrap();
 
     assert_eq!(proxy_policy.is_stale(now), false);
@@ -1038,6 +1066,7 @@ fn test_when_urls_match() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1065,6 +1094,7 @@ fn test_not_when_urls_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(!policy
@@ -1092,6 +1122,7 @@ fn test_when_methods_match() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(
@@ -1123,6 +1154,7 @@ fn test_not_when_hosts_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1162,6 +1194,7 @@ fn test_when_methods_match_head() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1189,6 +1222,7 @@ fn test_not_when_methods_mismatch() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(!policy
@@ -1216,6 +1250,7 @@ fn test_not_when_methods_mismatch_head() {
                 "cache-control": "max-age=2",
             },
         })),
+        now,
     ).unwrap();
 
     assert_eq!(
@@ -1245,6 +1280,7 @@ fn test_not_when_proxy_revalidating() {
                 "cache-control": "max-age=2, proxy-revalidate ",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(!policy
@@ -1359,6 +1395,7 @@ fn test_vary_basic() {
                 "vary": "weather",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1402,6 +1439,7 @@ fn test_asterisks_does_not_match() {
                 "vary": "*",
             },
         })),
+        now,
     ).unwrap();
 
     assert_eq!(
@@ -1434,6 +1472,7 @@ fn test_asterisks_is_stale() {
                 "vary": "*",
             },
         })),
+        now,
     ).unwrap();
 
     let policy_two = CachePolicy::try_new(
@@ -1448,6 +1487,7 @@ fn test_asterisks_is_stale() {
                 "vary": "weather",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy_one.is_stale(now));
@@ -1469,6 +1509,7 @@ fn test_values_are_case_sensitive() {
                 "vary": "Weather",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1512,6 +1553,7 @@ fn test_irrelevant_headers_ignored() {
                 "vary": "moon-phase",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1566,6 +1608,7 @@ fn test_absence_is_meaningful() {
                 "vary": "moon-phase, weather",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1623,6 +1666,7 @@ fn test_all_values_must_match() {
                 "vary": "weather, sun",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1669,6 +1713,7 @@ fn test_whitespace_is_okay() {
                 "vary": "    weather       ,     sun     ",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy
@@ -1728,6 +1773,7 @@ fn test_order_is_irrelevant() {
                 "vary": "weather, sun",
             },
         })),
+        now,
     ).unwrap();
 
     let policy_two = CachePolicy::try_new(
@@ -1743,6 +1789,7 @@ fn test_order_is_irrelevant() {
                 "vary": "sun, weather",
             },
         })),
+        now,
     ).unwrap();
 
     assert!(policy_one

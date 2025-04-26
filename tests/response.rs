@@ -24,6 +24,7 @@ fn test_simple_miss() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(Response::builder()),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -37,6 +38,7 @@ fn test_simple_hit() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "public, max-age=999999"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -51,6 +53,7 @@ fn test_quoted_syntax() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "  max-age = \"678\"      "),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -84,6 +87,7 @@ fn test_pre_check_tolerated() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, cache_control)),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -151,6 +155,7 @@ fn test_age_can_make_stale() {
                 .header(header::CACHE_CONTROL, "max-age=100")
                 .header(header::AGE, "101"),
         ),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -167,6 +172,7 @@ fn test_age_not_always_stale() {
                 .header(header::CACHE_CONTROL, "max-age=20")
                 .header(header::AGE, "15"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -182,6 +188,7 @@ fn test_bogus_age_ignored() {
                 .header(header::CACHE_CONTROL, "max-age=20")
                 .header(header::AGE, "golden"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -197,6 +204,7 @@ fn test_cache_old_files() {
                 .header(header::DATE, now_rfc2822())
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -211,6 +219,7 @@ fn test_immutable_simple_hit() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "immutable, max-age=999999"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -223,6 +232,7 @@ fn test_immutable_can_expire() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, "immutable, max-age=0")),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -240,6 +250,7 @@ fn test_cache_immutable_files() {
                 .header(header::CACHE_CONTROL, "immutable")
                 .header(header::LAST_MODIFIED, now_rfc2822()),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -278,6 +289,7 @@ fn test_pragma_no_cache() {
                 .header(header::PRAGMA, "no-cache")
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -294,6 +306,7 @@ fn test_blank_cache_control_and_pragma_no_cache() {
                 .header(header::PRAGMA, "no-cache")
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -307,6 +320,7 @@ fn test_no_store() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "no-store, public, max-age=1"),
         ),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -322,7 +336,7 @@ fn test_observe_private_cache() {
     let response =
         response_parts(Response::builder().header(header::CACHE_CONTROL, private_header));
 
-    let shared_policy = CachePolicy::try_new(&request, &response).unwrap_err().0;
+    let shared_policy = CachePolicy::try_new(&request, &response, now).unwrap_err().0;
 
     let unshared_policy = CachePolicy::try_new_with_options(
         &request,
@@ -350,7 +364,7 @@ fn test_do_not_share_cookies() {
             .header(header::CACHE_CONTROL, "max-age=99"),
     );
 
-    let shared_policy = CachePolicy::try_new(&request, &response).unwrap();
+    let shared_policy = CachePolicy::try_new(&request, &response, now).unwrap();
 
     let unshared_policy = CachePolicy::try_new_with_options(
         &request,
@@ -378,6 +392,7 @@ fn test_do_share_cookies_if_immutable() {
                 .header(header::SET_COOKIE, "foo=bar")
                 .header(header::CACHE_CONTROL, "immutable, max-age=99"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -394,6 +409,7 @@ fn test_cache_explicitly_public_cookie() {
                 .header(header::SET_COOKIE, "foo=bar")
                 .header(header::CACHE_CONTROL, "max-age=5, public"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -406,6 +422,7 @@ fn test_miss_max_age_equals_zero() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::GET)),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, "public, max-age=0")),
+        now,
     ).unwrap();
 
     assert!(policy.is_stale(now));
@@ -422,6 +439,7 @@ fn test_uncacheable_503() {
                 .status(503)
                 .header(header::CACHE_CONTROL, "public, max-age=0"),
         ),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -438,6 +456,7 @@ fn test_cacheable_301() {
                 .status(301)
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -453,6 +472,7 @@ fn test_uncacheable_303() {
                 .status(303)
                 .header(header::LAST_MODIFIED, "Mon, 07 Mar 2016 11:52:56 GMT"),
         ),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -469,6 +489,7 @@ fn test_cacheable_303() {
                 .status(303)
                 .header(header::CACHE_CONTROL, "max-age=1000"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -484,6 +505,7 @@ fn test_uncacheable_412() {
                 .status(412)
                 .header(header::CACHE_CONTROL, "public, max-age=1000"),
         ),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -500,6 +522,7 @@ fn test_expired_expires_cache_with_max_age() {
                 .header(header::CACHE_CONTROL, "public, max-age=9999")
                 .header(header::EXPIRES, "Sat, 07 May 2016 15:35:18 GMT"),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -516,6 +539,7 @@ fn request_mismatches() {
                 .header(header::CACHE_CONTROL, "public, max-age=9999")
                 .header(header::EXPIRES, "Sat, 07 May 2016 15:35:18 GMT"),
         ),
+        now,
     ).unwrap();
 
     let mismatch = policy.before_request(&request_parts(Request::builder().method(Method::POST).uri("/test")), now);
@@ -531,6 +555,7 @@ fn request_matches() {
             Response::builder()
                 .header(header::CACHE_CONTROL, "public, max-age=0")
         ),
+        now,
     ).unwrap();
 
     let mismatch = policy.before_request(&request_parts(Request::builder().method(Method::GET).uri("/test")), now);
@@ -547,7 +572,7 @@ fn test_expired_expires_cached_with_s_maxage() {
             .header(header::EXPIRES, "Sat, 07 May 2016 15:35:18 GMT"),
     );
 
-    let shared_policy = CachePolicy::try_new(&request, &response).unwrap();
+    let shared_policy = CachePolicy::try_new(&request, &response, now).unwrap();
 
     let unshared_policy = CachePolicy::try_new_with_options(
         &request,
@@ -582,6 +607,7 @@ fn test_max_age_wins_over_future_expires() {
                         .unwrap(),
                 ),
         ),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));

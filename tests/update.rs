@@ -63,6 +63,7 @@ fn not_modified_response_headers_for_update(
     let policy = CachePolicy::try_new(
         &request_parts(first_request_builder),
         &response_parts(first_response_builder),
+        now,
     ).unwrap();
 
     let headers = get_revalidation_request(

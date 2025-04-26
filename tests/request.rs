@@ -29,6 +29,7 @@ fn test_no_store_kills_cache() {
                 .header(header::CACHE_CONTROL, "no-store"),
         ),
         &public_cacheable_response(),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -40,6 +41,7 @@ fn test_post_not_cacheable_by_default() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::POST)),
         &response_parts(Response::builder().header(header::CACHE_CONTROL, "public")),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));
@@ -51,6 +53,7 @@ fn test_post_cacheable_explicitly() {
     let policy = CachePolicy::try_new(
         &request_parts(Request::builder().method(Method::POST)),
         &public_cacheable_response(),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -66,6 +69,7 @@ fn test_public_cacheable_auth_is_ok() {
                 .header(header::AUTHORIZATION, "test"),
         ),
         &public_cacheable_response(),
+        now,
     ).unwrap();
 
     assert!(!policy.is_stale(now));
@@ -102,6 +106,7 @@ fn test_revalidate_auth_is_ok() {
         &response_parts(
             Response::builder().header(header::CACHE_CONTROL, "max-age=88,must-revalidate"),
         ),
+        SystemTime::now(),
     ).unwrap();
 
     assert!(policy.is_storable());
@@ -117,6 +122,7 @@ fn test_auth_prevents_caching_by_default() {
                 .header(header::AUTHORIZATION, "test"),
         ),
         &cacheable_response(),
+        now,
     ).unwrap_err().0;
 
     assert!(policy.is_stale(now));

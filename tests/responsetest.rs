@@ -24,7 +24,7 @@ fn req() -> Request<()> {
 #[test]
 fn simple_miss() {
     let now = SystemTime::now();
-    let cache = CachePolicy::try_new(&req(), &Response::new(())).unwrap();
+    let cache = CachePolicy::try_new(&req(), &Response::new(()), now).unwrap();
     assert!(cache.is_stale(now));
 }
 
@@ -34,6 +34,7 @@ fn simple_hit() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": "public, max-age=999999" },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(cache.time_to_live(now).as_secs(), 999999);
@@ -45,6 +46,7 @@ fn weird_syntax() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": ",,,,max-age =  456      ," },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(cache.time_to_live(now).as_secs(), 456);
@@ -63,6 +65,7 @@ fn quoted_syntax() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": "  max-age = \"678\"      " },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(cache.time_to_live(now).as_secs(), 678);
@@ -97,6 +100,7 @@ fn pre_check_tolerated() {
         &headers! {
             "cache-control": cc
         },
+        now,
     ).unwrap_err().0;
     assert!(cache.is_stale(now), "{cache:#?}");
     assert_eq!(cache.time_to_live(now).as_secs(), 0);
@@ -194,6 +198,7 @@ fn cache_with_expires() {
             "date": date_str(now),
             "expires": date_str(now + Duration::from_millis(2001)),
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(2, cache.time_to_live(now).as_secs());
@@ -208,6 +213,7 @@ fn cache_with_expires_relative_to_date() {
             "date": date_str(now - Duration::from_secs(30)),
             "expires": date_str(now),
         },
+        now,
     ).unwrap();
     assert_eq!(30, cache.time_to_live(now).as_secs());
 }
@@ -236,6 +242,7 @@ fn cache_expires_no_date() {
             "cache-control": "public",
             "expires": date_str(now + Duration::from_secs(3600)),
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert!(cache.time_to_live(now).as_secs() > 3595);
@@ -251,6 +258,7 @@ fn ages() {
             "cache-control": "max-age=100",
             "age": "50",
         },
+        now,
     ).unwrap();
 
     assert_eq!(50, cache.time_to_live(now).as_secs());
@@ -272,6 +280,7 @@ fn age_can_make_stale() {
             "cache-control": "max-age=100",
             "age": "101",
         },
+        now,
     ).unwrap();
     assert!(cache.is_stale(now));
 }
@@ -285,6 +294,7 @@ fn age_not_always_stale() {
             "cache-control": "max-age=20",
             "age": "15",
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
 }
@@ -298,6 +308,7 @@ fn bogus_age_ignored() {
             "cache-control": "max-age=20",
             "age": "golden",
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
 }
@@ -311,6 +322,7 @@ fn cache_old_files() {
             "date": date_str(now),
             "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert!(cache.time_to_live(now).as_secs() > 100);
@@ -322,6 +334,7 @@ fn immutable_simple_hit() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": "immutable, max-age=999999" },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(cache.time_to_live(now).as_secs(), 999999);
@@ -335,6 +348,7 @@ fn immutable_can_expire() {
         &headers! {
             "cache-control": "immutable, max-age=0"
         },
+        now,
     ).unwrap();
     assert!(cache.is_stale(now));
     assert_eq!(cache.time_to_live(now).as_secs(), 0);
@@ -350,6 +364,7 @@ fn cache_immutable_files() {
             "cache-control": "immutable",
             "last-modified": date_str(now),
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert!(cache.time_to_live(now).as_secs() > 100);
@@ -384,12 +399,14 @@ fn pragma_no_cache() {
             "pragma": "no-cache",
             "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT",
         },
+        now,
     ).unwrap();
     assert!(cache.is_stale(now));
 }
 
 #[test]
 fn blank_cache_control_and_pragma_no_cache() {
+    let now = SystemTime::now();
     let cache = CachePolicy::try_new(
         &req(),
         &headers! {
@@ -397,8 +414,9 @@ fn blank_cache_control_and_pragma_no_cache() {
             "pragma": "no-cache",
             "last-modified": date_str(SystemTime::now() - Duration::from_secs(10)),
         },
+        now,
     ).unwrap();
-    assert!(!cache.is_stale(SystemTime::now()), "{cache:#?}");
+    assert!(!cache.is_stale(now), "{cache:#?}");
 }
 
 #[test]
@@ -407,6 +425,7 @@ fn no_store() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": "no-store, public, max-age=1", },
+        now,
     ).unwrap_err().0;
     assert!(cache.is_stale(now));
     assert_eq!(0, cache.time_to_live(now).as_secs());
@@ -420,6 +439,7 @@ fn observe_private_cache() {
         &headers! {
             "cache-control": "private, max-age=1234",
         },
+        now,
     ).unwrap_err().0;
     assert!(proxy_cache.is_stale(now));
     assert_eq!(0, proxy_cache.time_to_live(now).as_secs());
@@ -517,6 +537,7 @@ fn miss_max_age_0() {
     let cache = CachePolicy::try_new(
         &req(),
         &headers! { "cache-control": "public, max-age=0" },
+        now,
     ).unwrap();
     assert!(cache.is_stale(now));
     assert_eq!(0, cache.time_to_live(now).as_secs());
@@ -527,7 +548,7 @@ fn uncacheable_503() {
     let now = SystemTime::now();
     let mut res = headers! { "cache-control": "public, max-age=1000" };
     *res.status_mut() = StatusCode::from_u16(503).unwrap();
-    let cache = CachePolicy::try_new(&req(), &res).unwrap_err().0;
+    let cache = CachePolicy::try_new(&req(), &res, now).unwrap_err().0;
     assert!(cache.is_stale(now));
     assert_eq!(0, cache.time_to_live(now).as_secs());
 }
@@ -537,7 +558,7 @@ fn cacheable_301() {
     let now = SystemTime::now();
     let mut res = headers! { "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT", };
     *res.status_mut() = StatusCode::from_u16(301).unwrap();
-    let cache = CachePolicy::try_new(&req(), &res).unwrap();
+    let cache = CachePolicy::try_new(&req(), &res, now).unwrap();
     assert!(!cache.is_stale(now));
 }
 
@@ -546,7 +567,7 @@ fn uncacheable_303() {
     let now = SystemTime::now();
     let mut res = headers! { "last-modified": "Mon, 07 Mar 2016 11:52:56 GMT", };
     *res.status_mut() = StatusCode::from_u16(303).unwrap();
-    let cache = CachePolicy::try_new(&req(), &res).unwrap_err().0;
+    let cache = CachePolicy::try_new(&req(), &res, now).unwrap_err().0;
     assert!(cache.is_stale(now));
     assert_eq!(0, cache.time_to_live(now).as_secs());
 }
@@ -556,7 +577,7 @@ fn cacheable_303() {
     let now = SystemTime::now();
     let mut res = headers! { "cache-control": "max-age=1000", };
     *res.status_mut() = StatusCode::from_u16(303).unwrap();
-    let cache = CachePolicy::try_new(&req(), &res).unwrap();
+    let cache = CachePolicy::try_new(&req(), &res, now).unwrap();
     assert!(!cache.is_stale(now));
 }
 
@@ -565,7 +586,7 @@ fn uncacheable_412() {
     let now = SystemTime::now();
     let mut res = headers! { "cache-control": "public, max-age=1000", };
     *res.status_mut() = StatusCode::from_u16(412).unwrap();
-    let cache = CachePolicy::try_new(&req(), &res).unwrap_err().0;
+    let cache = CachePolicy::try_new(&req(), &res, now).unwrap_err().0;
     assert!(cache.is_stale(now));
     assert_eq!(0, cache.time_to_live(now).as_secs());
 }
@@ -579,6 +600,7 @@ fn expired_expires_cached_with_max_age() {
             "cache-control": "public, max-age=9999",
             "expires": "Sat, 07 May 2016 15:35:18 GMT",
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(9999, cache.time_to_live(now).as_secs());
@@ -593,6 +615,7 @@ fn expired_expires_cached_with_s_maxage() {
             "cache-control": "public, s-maxage=9999",
             "expires": "Sat, 07 May 2016 15:35:18 GMT",
         },
+        now,
     ).unwrap();
     assert!(!proxy_cache.is_stale(now));
     assert_eq!(9999, proxy_cache.time_to_live(now).as_secs());
@@ -622,6 +645,7 @@ fn max_age_wins_over_future_expires() {
             "cache-control": "public, max-age=333",
             "expires": date_str(now + Duration::from_secs(3600)),
         },
+        now,
     ).unwrap();
     assert!(!cache.is_stale(now));
     assert_eq!(333, cache.time_to_live(now).as_secs());
@@ -639,7 +663,7 @@ fn remove_hop_headers() {
         "age": "10",
         "cache-control": "public, max-age=333",
     };
-    let cache = CachePolicy::try_new(&req(), res).unwrap();
+    let cache = CachePolicy::try_new(&req(), res, now).unwrap();
 
     now += Duration::from_millis(1005);
     let h = get_cached_response(&cache, &req(), now);

@@ -448,6 +448,7 @@ fn test_get_headers_deletes_cached_100_level_warnings() {
                 .header("cache-control", "immutable")
                 .header(header::WARNING, "199 test danger, 200 ok ok"),
         ),
+        now,
     ).unwrap();
 
     assert_eq!(
@@ -467,6 +468,7 @@ fn test_do_not_cache_partial_response() {
                 .header(header::CONTENT_RANGE, "bytes 100-100/200")
                 .header(header::CACHE_CONTROL, "max-age=60"),
         ),
+        SystemTime::now(),
     ).unwrap_err();
 }
 

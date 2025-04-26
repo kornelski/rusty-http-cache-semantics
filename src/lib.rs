@@ -181,6 +181,10 @@ impl CachePolicy {
     /// Cacheability of an HTTP response depends on how it was requested, so
     /// both request and response are required to create the policy.
     ///
+    /// `response_time` is a timestamp when the response has been received, usually `SystemTime::now()`.
+    ///
+    /// # Errors
+    ///
     /// This constructor returns a [`Result`] to indicate if the cache policy is considered
     /// storable. In the common case of disregarding these policies you can just ignore the
     /// `Err(_)` case like so
@@ -189,9 +193,10 @@ impl CachePolicy {
     /// # use http_cache_semantics::CachePolicy;
     /// # let req = http::Request::<()>::default();
     /// # let res = http::Response::<()>::default();
+    /// # let now = std::time::SystemTime::now();
     /// # let mut cache = std::collections::HashMap::new();
     /// # let url = ();
-    /// if let Ok(policy) = CachePolicy::try_new(&req, &res) {
+    /// if let Ok(policy) = CachePolicy::try_new(&req, &res, now) {
     ///     cache.insert(url, policy);
     /// }
     /// ```
@@ -204,9 +209,10 @@ impl CachePolicy {
     /// # use http_cache_semantics::CachePolicy;
     /// # let req = http::Request::<()>::default();
     /// # let res = http::Response::<()>::default();
+    /// # let now = std::time::SystemTime::now();
     /// # let mut cache = std::collections::HashMap::new();
     /// # let url = ();
-    /// let policy = CachePolicy::try_new(&req, &res).unwrap_or_else(|err| err.0);
+    /// let policy = CachePolicy::try_new(&req, &res, now).unwrap_or_else(|err| err.0);
     /// // ... do something with `policy`
     /// if policy.is_storable() {
     ///     cache.insert(url, policy);
@@ -216,13 +222,12 @@ impl CachePolicy {
     pub fn try_new<Req: RequestLike, Res: ResponseLike>(
         req: &Req,
         res: &Res,
+        response_time: SystemTime,
     ) -> Result<Self, NotStorable> {
-        Self::try_new_with_options(req, res, SystemTime::now(), Default::default())
+        Self::try_new_with_options(req, res, response_time, Default::default())
     }
 
     /// Caching with customized behavior. See [`CacheOptions`] for details.
-    ///
-    /// `response_time` is a timestamp when the response has been received, usually `SystemTime::now()`.
     #[inline]
     pub fn try_new_with_options<Req: RequestLike, Res: ResponseLike>(
         req: &Req,
@@ -248,7 +253,7 @@ impl CachePolicy {
     #[deprecated(note = "replaced with `CachePolicy::try_new`")]
     #[inline]
     pub fn new<Req: RequestLike, Res: ResponseLike>(req: &Req, res: &Res) -> Self {
-        Self::try_new(req, res).unwrap_or_else(|n_s| n_s.0)
+        Self::try_new(req, res, SystemTime::now()).unwrap_or_else(|n_s| n_s.0)
     }
 
     /// Caching with customized behavior. See `CacheOptions` for details.
