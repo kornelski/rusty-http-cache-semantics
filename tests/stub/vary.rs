@@ -1,18 +1,13 @@
+use std::time::SystemTime;
+
+use crate::request_parts;
+use crate::response_parts;
+
 use http::{header, Request, Response};
 use http_cache_semantics::CachePolicy;
 
-use std::time::SystemTime;
-
-fn request_parts(builder: http::request::Builder) -> http::request::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
-
-fn response_parts(builder: http::response::Builder) -> http::response::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
-
 #[test]
-fn test_vary_basic() {
+fn vary_basic() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -41,7 +36,7 @@ fn test_vary_basic() {
 }
 
 #[test]
-fn test_asterisks_does_not_match() {
+fn asterisks_does_not_match() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -63,7 +58,7 @@ fn test_asterisks_does_not_match() {
 }
 
 #[test]
-fn test_asterisks_is_stale() {
+fn asterisks_is_stale() {
     let now = SystemTime::now();
     let policy_one = CachePolicy::new(
         &request_parts(Request::builder().header("weather", "ok")),
@@ -88,7 +83,7 @@ fn test_asterisks_is_stale() {
 }
 
 #[test]
-fn test_values_are_case_sensitive() {
+fn values_are_case_sensitive() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -117,7 +112,7 @@ fn test_values_are_case_sensitive() {
 }
 
 #[test]
-fn test_irrelevant_headers_ignored() {
+fn irrelevant_headers_ignored() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -153,7 +148,7 @@ fn test_irrelevant_headers_ignored() {
 }
 
 #[test]
-fn test_absence_is_meaningful() {
+fn absence_is_meaningful() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -190,7 +185,7 @@ fn test_absence_is_meaningful() {
 }
 
 #[test]
-fn test_all_values_must_match() {
+fn all_values_must_match() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -231,7 +226,7 @@ fn test_all_values_must_match() {
 }
 
 #[test]
-fn test_whitespace_is_okay() {
+fn whitespace_is_okay() {
     let now = SystemTime::now();
     let response = response_parts(
         Response::builder()
@@ -275,7 +270,7 @@ fn test_whitespace_is_okay() {
 }
 
 #[test]
-fn test_order_is_irrelevant() {
+fn order_is_irrelevant() {
     let now = SystemTime::now();
     let response_one = response_parts(
         Response::builder()

@@ -6,13 +6,8 @@ use http_cache_semantics::CachePolicy;
 use std::time::Duration;
 use std::time::SystemTime;
 
-fn request_parts(builder: http::request::Builder) -> http::request::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
-
-fn response_parts(builder: http::response::Builder) -> http::response::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
+use crate::request_parts;
+use crate::response_parts;
 
 fn simple_request_builder_for_update(additional_headers: Option<HeaderMap>) -> http::request::Builder {
     let mut builder = Request::builder()
@@ -117,7 +112,7 @@ fn assert_updates(
 }
 
 #[test]
-fn test_matching_etags_are_updated() {
+fn matching_etags_are_updated() {
     assert_updates(
         simple_request_builder_for_update(None),
         etagged_response_builder(),

@@ -1,21 +1,16 @@
 use http::{header, Method, Request, Response};
-use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
 use std::time::SystemTime;
 use time::format_description::well_known::Rfc2822;
 use time::Duration;
 use time::OffsetDateTime;
 
-fn request_parts(builder: http::request::Builder) -> http::request::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
-
-fn response_parts(builder: http::response::Builder) -> http::response::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
+use crate::private_opts;
+use crate::request_parts;
+use crate::response_parts;
 
 #[test]
-fn test_when_urls_match() {
+fn when_urls_match() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
@@ -23,15 +18,15 @@ fn test_when_urls_match() {
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
 
-    let policy = CachePolicy::new(&request_parts(Request::builder().uri("/")), response);
+    let policy = CachePolicy::new(&request_parts(Request::builder()), response);
 
     assert!(policy
-        .before_request(&mut request_parts(Request::builder().uri("/")), now)
+        .before_request(&mut request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 
 #[test]
-fn test_when_expires_is_present() {
+fn when_expires_is_present() {
     let now = SystemTime::now();
     let two_seconds_later = OffsetDateTime::now_utc()
         .checked_add(Duration::seconds(2))
@@ -52,20 +47,19 @@ fn test_when_expires_is_present() {
 }
 
 #[test]
-fn test_when_methods_match() {
+fn when_methods_match() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
-            .status(200)
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
     let policy = CachePolicy::new(
-        &request_parts(Request::builder().method(Method::GET)),
+        &request_parts(Request::builder()),
         response,
     );
 
     assert!(policy
-        .before_request(&request_parts(Request::builder().method(Method::GET)), now)
+        .before_request(&request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 
@@ -130,7 +124,7 @@ fn must_revalidate_disallows_stale() {
 }
 
 #[test]
-fn test_not_when_hosts_mismatch() {
+fn not_when_hosts_mismatch() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
@@ -158,11 +152,10 @@ fn test_not_when_hosts_mismatch() {
 }
 
 #[test]
-fn test_when_methods_match_head() {
+fn when_methods_match_head() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
-            .status(200)
             .header(header::CACHE_CONTROL, "max-age=2"),
     );
     let policy = CachePolicy::new(
@@ -176,45 +169,40 @@ fn test_when_methods_match_head() {
 }
 
 #[test]
-fn test_not_when_proxy_revalidating() {
+fn not_when_proxy_revalidating() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
-            .status(200)
             .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
     );
     let policy = CachePolicy::new(&request_parts(Request::builder()), response);
 
     assert!(!policy
-        .before_request(&mut request_parts(Request::builder()), now)
+        .before_request(&request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 
 #[test]
-fn test_when_not_a_proxy_revalidating() {
+fn when_not_a_proxy_revalidating() {
     let now = SystemTime::now();
     let response = &response_parts(
         Response::builder()
-            .status(200)
             .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
     );
     let policy = CachePolicy::new_options(
         &request_parts(Request::builder()),
         response,
         now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
+        private_opts(),
     );
 
     assert!(policy
-        .before_request(&mut request_parts(Request::builder()), now)
+        .before_request(&request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 
 #[test]
-fn test_not_when_no_cache_requesting() {
+fn not_when_no_cache_requesting() {
     let now = SystemTime::now();
     let response = &response_parts(Response::builder().header(header::CACHE_CONTROL, "max-age=2"));
     let policy = CachePolicy::new(&request_parts(Request::builder()), response);

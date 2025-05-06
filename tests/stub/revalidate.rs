@@ -3,13 +3,8 @@ use http_cache_semantics::CachePolicy;
 use std::time::Duration;
 use std::time::SystemTime;
 
-fn request_parts(builder: http::request::Builder) -> http::request::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
-
-fn response_parts(builder: http::response::Builder) -> http::response::Parts {
-    builder.body(()).unwrap().into_parts().0
-}
+use crate::request_parts;
+use crate::response_parts;
 
 fn simple_request() -> http::request::Parts {
     request_parts(simple_request_builder())
@@ -75,7 +70,7 @@ fn assert_no_validators(headers: &HeaderMap<HeaderValue>) {
 }
 
 #[test]
-fn test_ok_if_method_changes_to_head() {
+fn ok_if_method_changes_to_head() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -96,7 +91,7 @@ fn test_ok_if_method_changes_to_head() {
 }
 
 #[test]
-fn test_not_if_method_mismatch_other_than_head() {
+fn not_if_method_mismatch_other_than_head() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -113,7 +108,7 @@ fn test_not_if_method_mismatch_other_than_head() {
 }
 
 #[test]
-fn test_not_if_url_mismatch() {
+fn not_if_url_mismatch() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -130,7 +125,7 @@ fn test_not_if_url_mismatch() {
 }
 
 #[test]
-fn test_not_if_host_mismatch() {
+fn not_if_host_mismatch() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -150,7 +145,7 @@ fn test_not_if_host_mismatch() {
 }
 
 #[test]
-fn test_not_if_vary_fields_prevent() {
+fn not_if_vary_fields_prevent() {
     let now = SystemTime::now();
     let policy = simple_request_with_always_variable_response();
 
@@ -166,7 +161,7 @@ fn test_not_if_vary_fields_prevent() {
 }
 
 #[test]
-fn test_when_entity_tag_validator_is_present() {
+fn when_entity_tag_validator_is_present() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -183,7 +178,7 @@ fn test_when_entity_tag_validator_is_present() {
 }
 
 #[test]
-fn test_skips_weak_validators_on_post() {
+fn skips_weak_validators_on_post() {
     let now = SystemTime::now();
     let post_request = request_parts(
         simple_request_builder()
@@ -214,7 +209,7 @@ fn test_skips_weak_validators_on_post() {
 }
 
 #[test]
-fn test_skips_weak_validators_on_post_2() {
+fn skips_weak_validators_on_post_2() {
     let now = SystemTime::now();
     let post_request = request_parts(
         simple_request_builder()
@@ -240,7 +235,7 @@ fn test_skips_weak_validators_on_post_2() {
 }
 
 #[test]
-fn test_merges_validators() {
+fn merges_validators() {
     let now = SystemTime::now();
     let post_request = request_parts(
         simple_request_builder()
@@ -274,7 +269,7 @@ fn test_merges_validators() {
 }
 
 #[test]
-fn test_when_last_modified_validator_is_present() {
+fn when_last_modified_validator_is_present() {
     let now = SystemTime::now();
     let policy = CachePolicy::new(
         &simple_request(),
@@ -302,7 +297,7 @@ fn test_when_last_modified_validator_is_present() {
 }
 
 #[test]
-fn test_not_without_validators() {
+fn not_without_validators() {
     let now = SystemTime::now();
     let policy = simple_request_with_cacheable_response();
     let headers = get_revalidation_request(
@@ -322,7 +317,7 @@ fn test_not_without_validators() {
 }
 
 #[test]
-fn test_113_added() {
+fn status_113_added() {
     let now = SystemTime::now();
     let very_old_response = response_parts(
         Response::builder()
@@ -343,7 +338,7 @@ fn test_113_added() {
 }
 
 #[test]
-fn test_removes_warnings() {
+fn removes_warnings() {
     let now = SystemTime::now();
     let req = request_parts(Request::builder());
     let policy = CachePolicy::new(
@@ -361,7 +356,7 @@ fn test_removes_warnings() {
 }
 
 #[test]
-fn test_must_contain_any_etag() {
+fn must_contain_any_etag() {
     let now = SystemTime::now();
     let policy = CachePolicy::new(
         &simple_request(),
@@ -383,7 +378,7 @@ fn test_must_contain_any_etag() {
 }
 
 #[test]
-fn test_merges_etags() {
+fn merges_etags() {
     let now = SystemTime::now();
     let policy = simple_request_with_etagged_response();
 
@@ -405,7 +400,7 @@ fn test_merges_etags() {
 }
 
 #[test]
-fn test_should_send_the_last_modified_value() {
+fn should_send_the_last_modified_value() {
     let now = SystemTime::now();
     let policy = CachePolicy::new(
         &simple_request(),
@@ -430,7 +425,7 @@ fn test_should_send_the_last_modified_value() {
 }
 
 #[test]
-fn test_should_not_send_the_last_modified_value_for_post() {
+fn should_not_send_the_last_modified_value_for_post() {
     let now = SystemTime::now();
     let post_request = request_parts(
         Request::builder()
@@ -456,7 +451,7 @@ fn test_should_not_send_the_last_modified_value_for_post() {
 }
 
 #[test]
-fn test_should_not_send_the_last_modified_value_for_range_request() {
+fn should_not_send_the_last_modified_value_for_range_request() {
     let now = SystemTime::now();
     let range_request = request_parts(
         Request::builder()
