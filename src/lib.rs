@@ -12,6 +12,7 @@ use http::StatusCode;
 use http::Uri;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::Duration;
 use std::time::SystemTime;
 use time::format_description::well_known::Rfc2822;
@@ -21,7 +22,8 @@ use time::OffsetDateTime;
 const STATUS_CODE_CACHEABLE_BY_DEFAULT: &[u16] =
     &[200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
 
-// This implementation does not understand partial responses (206)
+// Note: this implementation only supports select 206 responses
+// See `CachePolicy::is_storable_partial_content` for more information
 const UNDERSTOOD_STATUSES: &[u16] = &[
     200, 203, 204, 300, 301, 302, 303, 307, 308, 404, 405, 410, 414, 501,
 ];
@@ -105,6 +107,58 @@ fn format_cache_control(cc: &CacheControl) -> String {
         }
     }
     out
+}
+
+/// Represents a value for a `range` header containing a single bounds (i.e. both start and end).
+#[derive(Debug, Clone, Copy)]
+struct BoundedRange {
+    /// The offset to the start of the range, inclusive.
+    start: u64,
+    /// The offset to the end of the range, inclusive.
+    end: u64,
+}
+
+impl FromStr for BoundedRange {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Currently only the `bytes` unit is supported
+        let s = s.trim().strip_prefix("bytes=").ok_or(())?;
+
+        // Don't accept an unbounded range, a suffix range, or multiple ranges
+        if s.starts_with('-') || s.ends_with('-') || s.contains(",") {
+            return Err(());
+        }
+
+        let (first, second) = s.split_once("-").ok_or(())?;
+        Ok(Self { start: first.parse().map_err(|_| ())?, end: second.parse().map_err(|_| ())? })
+    }
+}
+
+/// Represents a parsed `content-range` header from a 206 response.
+///
+/// A range of `*` is not considered valid for a 206 response.
+#[derive(Debug, Clone, Copy)]
+struct PartialContentRange {
+    /// The start of the content range, inclusive.
+    start: u64,
+    /// The end of the content range, inclusive.
+    end: u64,
+}
+
+impl FromStr for PartialContentRange {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Currently only the `bytes` unit is supported
+        let s = s.trim().strip_prefix("bytes ").ok_or(())?;
+        let (range, _) = s.split_once('/').ok_or(())?;
+        let (start, end) = range.split_once('-').ok_or(())?;
+        Ok(Self {
+            start: start.parse().map_err(|_| ())?,
+            end: end.parse().map_err(|_| ())?,
+        })
+    }
 }
 
 /// Configuration options which control behavior of the cache. Use with `CachePolicy::new_options()`.
@@ -263,8 +317,8 @@ impl CachePolicy {
             (Method::GET == self.method ||
                 Method::HEAD == self.method ||
                 (Method::POST == self.method && self.has_explicit_expiration())) &&
-            // the response status code is understood by the cache, and
-            UNDERSTOOD_STATUSES.contains(&self.status.as_u16()) &&
+            // either it is a storable partial response or the response status code is understood by the cache, and
+            (self.is_storable_partial_content() || UNDERSTOOD_STATUSES.contains(&self.status.as_u16())) &&
             // the "no-store" cache directive does not appear in request or response header fields, and
             !self.res_cc.contains_key("no-store") &&
             // the "private" response directive does not appear in the response, if the cache is shared, and
@@ -284,6 +338,61 @@ impl CachePolicy {
                 self.res_cc.contains_key("public") ||
                 // has a status code that is defined as cacheable by default
                 STATUS_CODE_CACHEABLE_BY_DEFAULT.contains(&self.status.as_u16()))
+    }
+
+    /// Determines if a partial content (206) response is considered storable.
+    ///
+    /// For a partial content response to be considered storable, the following must be true:
+    ///
+    /// * the request has an `if-match` header with a strong etag
+    /// * the request has a `range` header specifying only a single bounded range
+    /// * the response has a `content-range` header specifying a range matching the request's range.
+    ///
+    /// This is a very restrictive set of conditions that will allow a cache to store only
+    /// certain 206 responses.
+    ///
+    /// Note: the caller *must* take into consideration the request's `range` header when
+    /// deriving any cache keys so that a request's cache policy is delineated by range.
+    fn is_storable_partial_content(&self) -> bool {
+        // Only consider partial content responses here
+        if self.status != StatusCode::PARTIAL_CONTENT {
+            return false;
+        }
+
+        // The request must have an `if-match` header with a strong validator
+        if !self
+            .req
+            .get("if-match")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| !v.trim_start().starts_with("W/"))
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        // The request must have a `range` header with a single bounded range
+        let Ok(range) = self
+            .req
+            .get("range")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .parse::<BoundedRange>()
+        else {
+            return false;
+        };
+
+        // The response must have a `content-range` header
+        let Ok(content_range) = self
+            .res
+            .get("content-range")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .parse::<PartialContentRange>()
+        else {
+            return false;
+        };
+
+        range.start == content_range.start && range.end == content_range.end
     }
 
     fn has_explicit_expiration(&self) -> bool {
@@ -644,7 +753,7 @@ impl CachePolicy {
             || headers.contains_key("if-unmodified-since");
 
         /* SHOULD send the Last-Modified value in non-subrange cache validation requests (using If-Modified-Since) if only a Last-Modified value has been provided by the origin server.
-        Note: This implementation does not understand partial responses (206) */
+        Note: This implementation does not support all partial responses (206) */
         if forbids_weak_validators {
             headers.remove("if-modified-since");
 
