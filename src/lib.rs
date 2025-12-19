@@ -693,8 +693,8 @@ impl CachePolicy {
         let response_headers = response.headers();
         let mut response_status = response.status();
 
-        let old_etag = &self.res.get_str("etag").map(str::trim);
-        let old_last_modified = response_headers.get_str("last-modified").map(str::trim);
+        let old_etag = self.res.get_str("etag").map(str::trim);
+        let old_last_modified = self.res.get_str("last-modified").map(str::trim);
         let new_etag = response_headers.get_str("etag").map(str::trim);
         let new_last_modified = response_headers.get_str("last-modified").map(str::trim);
 
