@@ -92,7 +92,7 @@ fn assert_updates(
 ) {
     let extended_second_response_builder = second_response_builder
         .header(HeaderName::from_static("foo"), "updated")
-        .header(HeaderName::from_static("x-ignore-new"), "ignoreme");
+        .header(HeaderName::from_static("x-new"), "added");
     let etag_built = extended_second_response_builder
         .headers_ref()
         .unwrap()
@@ -112,7 +112,7 @@ fn assert_updates(
 
     assert_eq!(headers.get("foo").unwrap(), "updated");
     assert_eq!(headers.get("x-other").unwrap(), "original");
-    assert!(headers.get("x-ignore-new").is_none());
+    assert_eq!(headers.get("x-new").unwrap(), "added");
     assert_eq!(headers.get(header::ETAG).unwrap(), etag_built);
 }
 

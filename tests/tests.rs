@@ -1808,3 +1808,45 @@ fn test_order_is_irrelevant() {
         )
         .satisfies_without_revalidation());
 }
+
+#[test]
+fn test_304_header_addition() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
+        &req(json!({
+            "method": "GET",
+            "headers": {},
+        })),
+        &res(json!({
+            "headers": {
+                "cache-control": "max-age=600",
+                "etag": "v1",
+            }
+        })),
+        now,
+        CacheOptions::default()
+    );
+    let after = policy.after_response(
+        &req(json!({
+            "method": "GET",
+            "headers": {
+                "etag": "v1"
+            }
+        })),
+        &res(json!({
+            "status": 304,
+            "headers": {
+                "etag": "v1",
+                "vary": "accept-language"
+            }
+        })),
+        now
+    );
+
+    match after {
+        AfterResponse::NotModified(_, parts) => {
+            assert_eq!(parts.headers.get("vary").as_deref(), Some(&HeaderValue::from_static("accept-language")));
+        },
+        _ => unreachable!(),
+    }
+}

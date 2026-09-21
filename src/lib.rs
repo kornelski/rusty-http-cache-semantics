@@ -730,18 +730,17 @@ impl CachePolicy {
         }
 
         let new_response_headers = if matches {
-            let mut new_response_headers = HeaderMap::with_capacity(self.res.keys_len());
-            // use other header fields provided in the 304 (Not Modified) response to replace all instances
-            // of the corresponding header fields in the stored response.
-            for (header, old_value) in &self.res {
-                let header = header.clone();
-                if let Some(new_value) = response_headers.get(&header) {
-                    if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&header.as_str()) {
-                        new_response_headers.insert(header, new_value.clone());
-                        continue;
+            let mut new_response_headers = self.res.clone();
+            new_response_headers.remove("age");
+            // RFC 9111 §3.2: add header fields from the 304 response, replacing all
+            // stored values of the corresponding fields, except for excluded fields.
+            for header in response_headers.keys() {
+                if !EXCLUDED_FROM_REVALIDATION_UPDATE.contains(&header.as_str()) {
+                    new_response_headers.remove(header);
+                    for value in response_headers.get_all(header) {
+                        new_response_headers.append(header.clone(), value.clone());
                     }
                 }
-                new_response_headers.insert(header, old_value.clone());
             }
             response_status = self.status;
             new_response_headers
