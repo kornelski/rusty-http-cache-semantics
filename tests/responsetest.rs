@@ -101,18 +101,6 @@ fn pre_check_tolerated() {
     assert!(cache.is_stale(now), "{cache:#?}");
     assert!(!cache.is_storable());
     assert_eq!(cache.time_to_live(now).as_secs(), 0);
-    assert_eq!(
-        get_cached_response(
-            &cache,
-            &Request::get("http://test.example.com/")
-                .header("cache-control", "max-stale")
-                .body(())
-                .unwrap(),
-            now
-        )
-        .headers()["cache-control"],
-        cc
-    );
 }
 
 #[test]

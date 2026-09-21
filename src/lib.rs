@@ -367,7 +367,13 @@ impl CachePolicy {
             let max_stale = max_stale
                 .and_then(|m| m.as_ref())
                 .and_then(|s| s.parse().ok());
-            let allows_stale = !self.res_cc.contains_key("must-revalidate")
+            let must_revalidate = self.res_cc.contains_key("must-revalidate") ||
+                self.res_cc.contains_key("no-cache") ||
+                self.opts.shared && (
+                    self.res_cc.contains_key("proxy-revalidate") ||
+                    self.res_cc.contains_key("s-maxage")
+                );
+            let allows_stale = !must_revalidate
                 && has_max_stale
                 && max_stale.map_or(true, |val| {
                     Duration::from_secs(val) > self.age(now) - self.max_age()

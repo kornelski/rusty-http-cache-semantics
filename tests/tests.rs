@@ -1808,3 +1808,69 @@ fn test_order_is_irrelevant() {
         )
         .satisfies_without_revalidation());
 }
+
+#[test]
+fn test_max_stale_no_cache() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
+        &req(json!({
+            "method": "GET",
+            "headers": {},
+        })),
+        &res(json!({
+            "headers": {
+                "cache-control": "no-cache",
+            }
+        })),
+        now,
+        CacheOptions::default());
+    let before = policy.before_request(&req(json!({
+        "method": "GET",
+        "headers": { "cache-control": "max-stale" },
+    })), now);
+    assert!(matches!(before, BeforeRequest::Stale { .. }));
+}
+
+#[test]
+fn test_max_stale_proxy_revalidate() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
+        &req(json!({
+            "method": "GET",
+            "headers": {},
+        })),
+        &res(json!({
+            "headers": {
+                "cache-control": "public,proxy-revalidate,max-age=0",
+            }
+        })),
+        now,
+        CacheOptions::default());
+    let before = policy.before_request(&req(json!({
+        "method": "GET",
+        "headers": { "cache-control": "max-stale" },
+    })), now);
+    assert!(matches!(before, BeforeRequest::Stale { .. }));
+}
+
+#[test]
+fn test_max_stale_s_maxage() {
+    let now = SystemTime::now();
+    let policy = CachePolicy::new_options(
+        &req(json!({
+            "method": "GET",
+            "headers": {},
+        })),
+        &res(json!({
+            "headers": {
+                "cache-control": "public,s-maxage=0",
+            }
+        })),
+        now,
+        CacheOptions::default());
+    let before = policy.before_request(&req(json!({
+        "method": "GET",
+        "headers": { "cache-control": "max-stale" },
+    })), now);
+    assert!(matches!(before, BeforeRequest::Stale { .. }));
+}

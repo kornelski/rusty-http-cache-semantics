@@ -89,15 +89,6 @@ fn test_pre_check_tolerated() {
     assert!(policy.is_stale(now));
     assert!(!policy.is_storable());
     assert_eq!((policy.time_to_live(now) + policy.age(now)).as_secs(), 0);
-    assert_eq!(
-        get_cached_response(
-            &policy,
-            &request_parts(Request::builder().header("cache-control", "max-stale")),
-            now
-        )
-        .headers[header::CACHE_CONTROL.as_str()],
-        cache_control
-    );
 }
 
 #[test]
