@@ -1,5 +1,4 @@
 use http::{header, Method, Request, Response};
-use http_cache_semantics::CacheOptions;
 use http_cache_semantics::CachePolicy;
 use std::time::SystemTime;
 use time::format_description::well_known::Rfc2822;
@@ -172,44 +171,6 @@ fn test_when_methods_match_head() {
 
     assert!(policy
         .before_request(&request_parts(Request::builder().method(Method::HEAD)), now)
-        .satisfies_without_revalidation());
-}
-
-#[test]
-fn test_not_when_proxy_revalidating() {
-    let now = SystemTime::now();
-    let response = &response_parts(
-        Response::builder()
-            .status(200)
-            .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
-    );
-    let policy = CachePolicy::new(&request_parts(Request::builder()), response);
-
-    assert!(!policy
-        .before_request(&mut request_parts(Request::builder()), now)
-        .satisfies_without_revalidation());
-}
-
-#[test]
-fn test_when_not_a_proxy_revalidating() {
-    let now = SystemTime::now();
-    let response = &response_parts(
-        Response::builder()
-            .status(200)
-            .header(header::CACHE_CONTROL, "max-age=2, proxy-revalidate "),
-    );
-    let policy = CachePolicy::new_options(
-        &request_parts(Request::builder()),
-        response,
-        now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-
-    assert!(policy
-        .before_request(&mut request_parts(Request::builder()), now)
         .satisfies_without_revalidation());
 }
 

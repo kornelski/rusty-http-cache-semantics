@@ -1248,57 +1248,27 @@ fn test_not_when_methods_mismatch_head() {
 }
 
 #[test]
-fn test_not_when_proxy_revalidating() {
-    let now = SystemTime::now();
-    let policy = CachePolicy::new(
-        &req(json!({
-            "headers": {},
-        })),
-        &res(json!({
-            "status": 200,
-            "headers": {
-                "cache-control": "max-age=2, proxy-revalidate ",
-            },
-        })),
-    );
-
-    assert!(!policy
-        .before_request(
-            &req(json!({
-                "headers": {},
-            })),
-            now
-        )
-        .satisfies_without_revalidation());
-}
-
-#[test]
-fn test_when_not_a_proxy_revalidating() {
+fn test_proxy_revalidate_fresh() {
     let now = SystemTime::now();
     let policy = CachePolicy::new_options(
         &req(json!({
+            "method": "GET",
             "headers": {},
         })),
         &res(json!({
-            "status": 200,
             "headers": {
-                "cache-control": "max-age=2, proxy-revalidate ",
-            },
+                "cache-control": "public,max-age=600,proxy-revalidate",
+            }
         })),
         now,
-        CacheOptions {
-            shared: false,
-            ..Default::default()
-        },
-    );
-    assert!(policy
-        .before_request(
-            &req(json!({
-                "headers": {},
-            })),
-            now
-        )
-        .satisfies_without_revalidation());
+        CacheOptions::default());
+
+    let before = policy.before_request(&req(json!({
+        "method": "GET",
+        "headers": {},
+    })), now);
+
+    assert!(matches!(before, BeforeRequest::Fresh { .. }));
 }
 
 #[test]

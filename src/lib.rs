@@ -538,9 +538,6 @@ impl CachePolicy {
         }
 
         if self.opts.shared {
-            if self.res_cc.contains_key("proxy-revalidate") {
-                return Duration::from_secs(0);
-            }
             // if a response includes the s-maxage directive, a shared cache recipient MUST ignore the Expires field.
             if let Some(s_max) = self.res_cc.get("s-maxage").and_then(|v| v.as_ref()) {
                 return Duration::from_secs(s_max.parse().unwrap_or(0));
